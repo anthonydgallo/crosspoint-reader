@@ -13,12 +13,16 @@
 
 class MyLibraryActivity final : public Activity {
  private:
+  enum class State { BROWSING, DELETE_CONFIRM };
+
   TaskHandle_t displayTaskHandle = nullptr;
   SemaphoreHandle_t renderingMutex = nullptr;
   ButtonNavigator buttonNavigator;
 
   size_t selectorIndex = 0;
   bool updateRequired = false;
+  State state = State::BROWSING;
+  std::string deleteError;
 
   // Files state
   std::string basepath = "/";
@@ -35,6 +39,9 @@ class MyLibraryActivity final : public Activity {
   // Data loading
   void loadFiles();
   size_t findEntry(const std::string& name) const;
+
+  // Delete
+  void deleteSelectedItem();
 
  public:
   explicit MyLibraryActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,

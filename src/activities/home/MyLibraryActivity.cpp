@@ -12,6 +12,7 @@
 
 namespace {
 constexpr unsigned long GO_HOME_MS = 1000;
+constexpr unsigned long DELETE_CONFIRM_MS = 1000;
 }  // namespace
 
 void sortFileList(std::vector<std::string>& strs) {
@@ -140,6 +141,19 @@ void MyLibraryActivity::onExit() {
 }
 
 void MyLibraryActivity::loop() {
+  // Delete confirmation state
+  if (state == State::DELETE_CONFIRM) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
+      deleteSelectedItem();
+    }
+    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+      state = State::BROWSING;
+      deleteError.clear();
+      updateRequired = true;
+    }
+    return;
+  }
+
   // Long press BACK (1s+) goes to root folder
   if (mappedInput.isPressed(MappedInputManager::Button::Back) && mappedInput.getHeldTime() >= GO_HOME_MS &&
       basepath != "/") {
@@ -154,6 +168,14 @@ void MyLibraryActivity::loop() {
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
     if (files.empty()) {
+      return;
+    }
+
+    // Long press CONFIRM (1s+) enters delete confirmation
+    if (mappedInput.getHeldTime() >= DELETE_CONFIRM_MS) {
+      state = State::DELETE_CONFIRM;
+      deleteError.clear();
+      updateRequired = true;
       return;
     }
 
@@ -213,6 +235,47 @@ void MyLibraryActivity::loop() {
   });
 }
 
+void MyLibraryActivity::deleteSelectedItem() {
+  if (selectorIndex >= files.size()) return;
+
+  std::string itemName = files[selectorIndex];
+  const bool isDir = !itemName.empty() && itemName.back() == '/';
+  if (isDir) itemName = itemName.substr(0, itemName.length() - 1);
+
+  std::string fullPath = basepath;
+  if (fullPath.back() != '/') fullPath += "/";
+  fullPath += itemName;
+
+  Serial.printf("[%lu] [MY_LIBRARY] Deleting: %s\n", millis(), fullPath.c_str());
+
+  bool success;
+  if (isDir) {
+    success = Storage.rmdir(fullPath.c_str());
+  } else {
+    success = Storage.remove(fullPath.c_str());
+  }
+
+  if (success) {
+    Serial.printf("[%lu] [MY_LIBRARY] Deleted successfully: %s\n", millis(), fullPath.c_str());
+
+    if (!isDir) {
+      RECENT_BOOKS.removeBook(fullPath);
+    }
+
+    loadFiles();
+    if (selectorIndex >= files.size() && !files.empty()) {
+      selectorIndex = files.size() - 1;
+    }
+    state = State::BROWSING;
+    deleteError.clear();
+  } else {
+    Serial.printf("[%lu] [MY_LIBRARY] Failed to delete: %s\n", millis(), fullPath.c_str());
+    deleteError = isDir ? "Folder must be empty" : "Failed to delete file";
+  }
+
+  updateRequired = true;
+}
+
 void MyLibraryActivity::displayTaskLoop() {
   while (true) {
     if (updateRequired) {
@@ -231,6 +294,32 @@ void MyLibraryActivity::render() const {
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
   auto metrics = UITheme::getInstance().getMetrics();
+
+  if (state == State::DELETE_CONFIRM && selectorIndex < files.size()) {
+    std::string itemName = files[selectorIndex];
+    const bool isDir = !itemName.empty() && itemName.back() == '/';
+    if (isDir) itemName = itemName.substr(0, itemName.length() - 1);
+
+    GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, "Delete Item");
+
+    if (deleteError.empty()) {
+      renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 - 40, "Are you sure you want to delete:", true);
+      renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 - 10, itemName.c_str(), true, EpdFontFamily::BOLD);
+      renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 + 30, "This action cannot be undone!", true);
+
+      const auto labels = mappedInput.mapLabels("« Cancel", "Delete", "", "");
+      GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    } else {
+      renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 - 20, deleteError.c_str(), true, EpdFontFamily::BOLD);
+      renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 + 10, itemName.c_str(), true);
+
+      const auto labels = mappedInput.mapLabels("« Back", "", "", "");
+      GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    }
+
+    renderer.displayBuffer();
+    return;
+  }
 
   auto folderName = basepath == "/" ? "SD card" : basepath.substr(basepath.rfind('/') + 1).c_str();
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, folderName);
