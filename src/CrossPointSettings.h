@@ -119,6 +119,9 @@ class CrossPointSettings {
   // UI Theme
   enum UI_THEME { CLASSIC = 0, LYRA = 1, FILE_BROWSER = 2, UI_THEME_COUNT };
 
+  // Keyboard style
+  enum KEYBOARD_STYLE { KEYBOARD_QWERTY = 0, KEYBOARD_SCROLL = 1, KEYBOARD_STYLE_COUNT };
+
   // Sleep screen settings
   uint8_t sleepScreen = DARK;
   // Sleep screen cover mode settings
@@ -171,6 +174,8 @@ class CrossPointSettings {
   uint8_t fadingFix = 0;
   // Use book's embedded CSS styles for EPUB rendering (1 = enabled, 0 = disabled)
   uint8_t embeddedStyle = 1;
+  // Keyboard style for text entry (0 = QWERTY grid, 1 = scroll strip)
+  uint8_t keyboardStyle = KEYBOARD_QWERTY;
 
   ~CrossPointSettings() = default;
 
