@@ -6,7 +6,7 @@
 #include <algorithm>
 
 #include "MappedInputManager.h"
-#include "activities/util/KeyboardEntryActivity.h"
+#include "activities/util/KeyboardFactory.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "util/StringUtils.h"
@@ -431,7 +431,7 @@ void MyLibraryActivity::startRename() {
 
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   exitActivity();
-  enterNewActivity(new KeyboardEntryActivity(
+  enterNewActivity(createKeyboard(
       renderer, mappedInput, "Rename", itemName, 10,
       0,      // unlimited length
       false,  // not password

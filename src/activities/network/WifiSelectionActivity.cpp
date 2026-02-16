@@ -8,7 +8,7 @@
 
 #include "MappedInputManager.h"
 #include "WifiCredentialStore.h"
-#include "activities/util/KeyboardEntryActivity.h"
+#include "activities/util/KeyboardFactory.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 
@@ -222,7 +222,7 @@ void WifiSelectionActivity::selectNetwork(const int index) {
     state = WifiSelectionState::PASSWORD_ENTRY;
     // Don't allow screen updates while changing activity
     xSemaphoreTake(renderingMutex, portMAX_DELAY);
-    enterNewActivity(new KeyboardEntryActivity(
+    enterNewActivity(createKeyboard(
         renderer, mappedInput, "Enter WiFi Password",
         "",     // No initial text
         50,     // Y position

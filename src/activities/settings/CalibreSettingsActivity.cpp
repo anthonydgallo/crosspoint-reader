@@ -6,7 +6,7 @@
 
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
-#include "activities/util/KeyboardEntryActivity.h"
+#include "activities/util/KeyboardFactory.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 
@@ -81,7 +81,7 @@ void CalibreSettingsActivity::handleSelection() {
   if (selectedIndex == 0) {
     // OPDS Server URL
     exitActivity();
-    enterNewActivity(new KeyboardEntryActivity(
+    enterNewActivity(createKeyboard(
         renderer, mappedInput, "OPDS Server URL", SETTINGS.opdsServerUrl, 10,
         127,    // maxLength
         false,  // not password
@@ -99,7 +99,7 @@ void CalibreSettingsActivity::handleSelection() {
   } else if (selectedIndex == 1) {
     // Username
     exitActivity();
-    enterNewActivity(new KeyboardEntryActivity(
+    enterNewActivity(createKeyboard(
         renderer, mappedInput, "Username", SETTINGS.opdsUsername, 10,
         63,     // maxLength
         false,  // not password
@@ -117,7 +117,7 @@ void CalibreSettingsActivity::handleSelection() {
   } else if (selectedIndex == 2) {
     // Password
     exitActivity();
-    enterNewActivity(new KeyboardEntryActivity(
+    enterNewActivity(createKeyboard(
         renderer, mappedInput, "Password", SETTINGS.opdsPassword, 10,
         63,     // maxLength
         false,  // not password mode
