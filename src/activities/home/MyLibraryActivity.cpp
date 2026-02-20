@@ -2,6 +2,7 @@
 
 #include <GfxRenderer.h>
 #include <HalStorage.h>
+#include <I18n.h>
 
 #include <algorithm>
 
@@ -68,11 +69,6 @@ void sortFileList(std::vector<std::string>& strs) {
   });
 }
 
-void MyLibraryActivity::taskTrampoline(void* param) {
-  auto* self = static_cast<MyLibraryActivity*>(param);
-  self->displayTaskLoop();
-}
-
 void MyLibraryActivity::loadFiles() {
   files.clear();
 
@@ -109,35 +105,16 @@ void MyLibraryActivity::loadFiles() {
 }
 
 void MyLibraryActivity::onEnter() {
-  Activity::onEnter();
-
-  renderingMutex = xSemaphoreCreateMutex();
+  ActivityWithSubactivity::onEnter();
 
   loadFiles();
-
   selectorIndex = 0;
-  updateRequired = true;
 
-  xTaskCreate(&MyLibraryActivity::taskTrampoline, "MyLibraryActivityTask",
-              4096,               // Stack size
-              this,               // Parameters
-              1,                  // Priority
-              &displayTaskHandle  // Task handle
-  );
+  requestUpdate();
 }
 
 void MyLibraryActivity::onExit() {
   ActivityWithSubactivity::onExit();
-
-  // Wait until not rendering to delete task to avoid killing mid-instruction to EPD
-  xSemaphoreTake(renderingMutex, portMAX_DELAY);
-  if (displayTaskHandle) {
-    vTaskDelete(displayTaskHandle);
-    displayTaskHandle = nullptr;
-  }
-  vSemaphoreDelete(renderingMutex);
-  renderingMutex = nullptr;
-
   files.clear();
 }
 
@@ -156,7 +133,7 @@ void MyLibraryActivity::loop() {
     if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
       state = State::BROWSING;
       deleteError.clear();
-      updateRequired = true;
+      requestUpdate();
     }
     return;
   }
@@ -167,20 +144,20 @@ void MyLibraryActivity::loop() {
     if (mappedInput.wasPressed(MappedInputManager::Button::Up) ||
         mappedInput.wasPressed(MappedInputManager::Button::Down)) {
       state = State::BROWSING;
-      updateRequired = true;
+      requestUpdate();
       return;
     }
     // Back = Cancel
     if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
       state = State::BROWSING;
-      updateRequired = true;
+      requestUpdate();
       return;
     }
     // Confirm = Delete → go to delete confirmation
     if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
       state = State::DELETE_CONFIRM;
       deleteError.clear();
-      updateRequired = true;
+      requestUpdate();
       return;
     }
     // Left = Rename → open keyboard
@@ -209,7 +186,7 @@ void MyLibraryActivity::loop() {
     if (mappedInput.isPressed(MappedInputManager::Button::Back) && mappedInput.getHeldTime() >= GO_HOME_MS) {
       state = State::BROWSING;
       moveError.clear();
-      updateRequired = true;
+      requestUpdate();
       return;
     }
 
@@ -227,7 +204,7 @@ void MyLibraryActivity::loop() {
           moveBrowsePath += dirName;
           loadMoveDirs();
           moveSelectorIndex = 0;
-          updateRequired = true;
+          requestUpdate();
         }
       }
       return;
@@ -242,11 +219,11 @@ void MyLibraryActivity::loop() {
           if (moveBrowsePath.empty()) moveBrowsePath = "/";
           loadMoveDirs();
           moveSelectorIndex = 0;
-          updateRequired = true;
+          requestUpdate();
         } else {
           // At root, cancel move
           state = State::BROWSING;
-          updateRequired = true;
+          requestUpdate();
         }
       }
       return;
@@ -256,26 +233,26 @@ void MyLibraryActivity::loop() {
     buttonNavigator.onNextRelease([this, moveListSize] {
       moveSelectorIndex = ButtonNavigator::nextIndex(static_cast<int>(moveSelectorIndex), moveListSize);
       moveError.clear();
-      updateRequired = true;
+      requestUpdate();
     });
 
     buttonNavigator.onPreviousRelease([this, moveListSize] {
       moveSelectorIndex = ButtonNavigator::previousIndex(static_cast<int>(moveSelectorIndex), moveListSize);
       moveError.clear();
-      updateRequired = true;
+      requestUpdate();
     });
 
     buttonNavigator.onNextContinuous([this, moveListSize, movePageItems] {
       moveSelectorIndex = ButtonNavigator::nextPageIndex(static_cast<int>(moveSelectorIndex), moveListSize, movePageItems);
       moveError.clear();
-      updateRequired = true;
+      requestUpdate();
     });
 
     buttonNavigator.onPreviousContinuous([this, moveListSize, movePageItems] {
       moveSelectorIndex =
           ButtonNavigator::previousPageIndex(static_cast<int>(moveSelectorIndex), moveListSize, movePageItems);
       moveError.clear();
-      updateRequired = true;
+      requestUpdate();
     });
     return;
   }
@@ -286,7 +263,6 @@ void MyLibraryActivity::loop() {
     basepath = "/";
     loadFiles();
     selectorIndex = 0;
-    updateRequired = true;
     return;
   }
 
@@ -316,7 +292,7 @@ void MyLibraryActivity::loop() {
         basepath += files[selectorIndex].substr(0, files[selectorIndex].length() - 1);
         loadFiles();
         selectorIndex = 0;
-        updateRequired = true;
+        requestUpdate();
       } else {
         onSelectBook(basepath + files[selectorIndex]);
         return;
@@ -338,7 +314,7 @@ void MyLibraryActivity::loop() {
         const std::string dirName = oldPath.substr(pos + 1) + "/";
         selectorIndex = findEntry(dirName);
 
-        updateRequired = true;
+        requestUpdate();
       } else {
         onGoHome();
       }
@@ -349,22 +325,22 @@ void MyLibraryActivity::loop() {
 
   buttonNavigator.onNextRelease([this, listSize] {
     selectorIndex = ButtonNavigator::nextIndex(static_cast<int>(selectorIndex), listSize);
-    updateRequired = true;
+    requestUpdate();
   });
 
   buttonNavigator.onPreviousRelease([this, listSize] {
     selectorIndex = ButtonNavigator::previousIndex(static_cast<int>(selectorIndex), listSize);
-    updateRequired = true;
+    requestUpdate();
   });
 
   buttonNavigator.onNextContinuous([this, listSize, pageItems] {
     selectorIndex = ButtonNavigator::nextPageIndex(static_cast<int>(selectorIndex), listSize, pageItems);
-    updateRequired = true;
+    requestUpdate();
   });
 
   buttonNavigator.onPreviousContinuous([this, listSize, pageItems] {
     selectorIndex = ButtonNavigator::previousPageIndex(static_cast<int>(selectorIndex), listSize, pageItems);
-    updateRequired = true;
+    requestUpdate();
   });
 }
 
@@ -407,7 +383,7 @@ void MyLibraryActivity::deleteSelectedItem() {
     deleteError = isDir ? "Folder must be empty" : "Failed to delete file";
   }
 
-  updateRequired = true;
+  requestUpdate();
 }
 
 void MyLibraryActivity::startRename() {
@@ -429,53 +405,54 @@ void MyLibraryActivity::startRename() {
 
   state = State::BROWSING;
 
-  xSemaphoreTake(renderingMutex, portMAX_DELAY);
-  exitActivity();
-  enterNewActivity(createKeyboard(
-      renderer, mappedInput, "Rename", itemName, 10,
-      0,      // unlimited length
-      false,  // not password
-      [this, isDir, extension](const std::string& newName) {
-        if (!newName.empty() && selectorIndex < files.size()) {
-          std::string dir = basepath;
-          if (dir.back() != '/') dir += "/";
+  {
+    RenderLock lock(*this);
+    exitActivity();
+    enterNewActivity(createKeyboard(
+        renderer, mappedInput, "Rename", itemName, 10,
+        0,      // unlimited length
+        false,  // not password
+        [this, isDir, extension](const std::string& newName) {
+          if (!newName.empty() && selectorIndex < files.size()) {
+            std::string dir = basepath;
+            if (dir.back() != '/') dir += "/";
 
-          std::string oldItemName = files[selectorIndex];
-          if (isDir) oldItemName = oldItemName.substr(0, oldItemName.length() - 1);
+            std::string oldItemName = files[selectorIndex];
+            if (isDir) oldItemName = oldItemName.substr(0, oldItemName.length() - 1);
 
-          const std::string oldPath = dir + oldItemName;
-          const std::string newFileName = newName + extension;
-          const std::string newPath = dir + (isDir ? newName : newFileName);
+            const std::string oldPath = dir + oldItemName;
+            const std::string newFileName = newName + extension;
+            const std::string newPath = dir + (isDir ? newName : newFileName);
 
-          LOG_DBG("MY_LIBRARY", "Renaming: %s -> %s", oldPath.c_str(), newPath.c_str());
+            LOG_DBG("MY_LIBRARY", "Renaming: %s -> %s", oldPath.c_str(), newPath.c_str());
 
-          if (Storage.rename(oldPath.c_str(), newPath.c_str())) {
-            LOG_DBG("MY_LIBRARY", "Renamed successfully");
+            if (Storage.rename(oldPath.c_str(), newPath.c_str())) {
+              LOG_DBG("MY_LIBRARY", "Renamed successfully");
 
-            if (!isDir) {
-              // Update recent books store if this book was tracked
-              const auto bookData = RECENT_BOOKS.getDataFromBook(oldPath);
-              if (!bookData.path.empty()) {
-                RECENT_BOOKS.removeBook(oldPath);
-                RECENT_BOOKS.addBook(newPath, bookData.title, bookData.author, bookData.coverBmpPath);
+              if (!isDir) {
+                // Update recent books store if this book was tracked
+                const auto bookData = RECENT_BOOKS.getDataFromBook(oldPath);
+                if (!bookData.path.empty()) {
+                  RECENT_BOOKS.removeBook(oldPath);
+                  RECENT_BOOKS.addBook(newPath, bookData.title, bookData.author, bookData.coverBmpPath);
+                }
               }
-            }
 
-            loadFiles();
-            // Select the renamed item
-            selectorIndex = findEntry(isDir ? newName + "/" : newFileName);
-          } else {
-            LOG_ERR("MY_LIBRARY", "Failed to rename");
+              loadFiles();
+              // Select the renamed item
+              selectorIndex = findEntry(isDir ? newName + "/" : newFileName);
+            } else {
+              LOG_ERR("MY_LIBRARY", "Failed to rename");
+            }
           }
-        }
-        exitActivity();
-        updateRequired = true;
-      },
-      [this]() {
-        exitActivity();
-        updateRequired = true;
-      }));
-  xSemaphoreGive(renderingMutex);
+          exitActivity();
+          requestUpdate();
+        },
+        [this]() {
+          exitActivity();
+          requestUpdate();
+        }));
+  }
 }
 
 void MyLibraryActivity::loadMoveDirs() {
@@ -536,7 +513,7 @@ void MyLibraryActivity::startMove() {
   loadMoveDirs();
 
   state = State::MOVE_BROWSING;
-  updateRequired = true;
+  requestUpdate();
 }
 
 void MyLibraryActivity::executeMoveHere() {
@@ -548,14 +525,14 @@ void MyLibraryActivity::executeMoveHere() {
   // Check if moving to the same location
   if (newPath == moveSourcePath) {
     moveError = "Already in this folder";
-    updateRequired = true;
+    requestUpdate();
     return;
   }
 
   // Check if destination already exists
   if (Storage.exists(newPath.c_str())) {
     moveError = "Name already exists here";
-    updateRequired = true;
+    requestUpdate();
     return;
   }
 
@@ -585,22 +562,10 @@ void MyLibraryActivity::executeMoveHere() {
     moveError = "Failed to move file";
   }
 
-  updateRequired = true;
+  requestUpdate();
 }
 
-void MyLibraryActivity::displayTaskLoop() {
-  while (true) {
-    if (updateRequired) {
-      updateRequired = false;
-      xSemaphoreTake(renderingMutex, portMAX_DELAY);
-      render();
-      xSemaphoreGive(renderingMutex);
-    }
-    vTaskDelay(10 / portTICK_PERIOD_MS);
-  }
-}
-
-void MyLibraryActivity::render() const {
+void MyLibraryActivity::render(Activity::RenderLock&&) {
   renderer.clearScreen();
 
   const auto pageWidth = renderer.getScreenWidth();
@@ -635,8 +600,8 @@ void MyLibraryActivity::render() const {
 
   // Move browsing state - directory picker for move destination
   if (state == State::MOVE_BROWSING) {
-    auto folderName = moveBrowsePath == "/" ? "SD card" : moveBrowsePath.substr(moveBrowsePath.rfind('/') + 1);
-    const std::string headerTitle = "Move to: " + std::string(folderName);
+    std::string moveFolderName = (moveBrowsePath == "/") ? tr(STR_SD_CARD) : moveBrowsePath.substr(moveBrowsePath.rfind('/') + 1);
+    const std::string headerTitle = "Move to: " + moveFolderName;
     GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, headerTitle.c_str());
 
     const int contentTop = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
@@ -661,20 +626,20 @@ void MyLibraryActivity::render() const {
       renderer.drawCenteredText(UI_10_FONT_ID, errorY, moveError.c_str(), true);
     }
 
-    const auto labels = mappedInput.mapLabels("« Back", "Select", "Up", "Down");
+    const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
     renderer.displayBuffer();
     return;
   }
 
-  auto folderName = basepath == "/" ? "SD card" : basepath.substr(basepath.rfind('/') + 1).c_str();
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, folderName);
+  std::string folderName = (basepath == "/") ? tr(STR_SD_CARD) : basepath.substr(basepath.rfind('/') + 1);
+  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, folderName.c_str());
 
   const int contentTop = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
   const int contentHeight = pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing;
   if (files.empty()) {
-    renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, contentTop + 20, "No books found");
+    renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, contentTop + 20, tr(STR_NO_BOOKS_FOUND));
   } else {
     GUI.drawList(
         renderer, Rect{0, contentTop, pageWidth, contentHeight}, files.size(), selectorIndex,
@@ -683,10 +648,11 @@ void MyLibraryActivity::render() const {
 
   // File actions menu: show action buttons instead of normal hints
   if (state == State::FILE_ACTIONS) {
-    const auto labels = mappedInput.mapLabels("Cancel", "Delete", "Rename", "Move");
+    const auto labels = mappedInput.mapLabels(tr(STR_CANCEL), "Delete", "Rename", "Move");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else {
-    const auto labels = mappedInput.mapLabels(basepath == "/" ? "« Home" : "« Back", "Open", "Up", "Down");
+    const auto labels = mappedInput.mapLabels(basepath == "/" ? tr(STR_HOME) : tr(STR_BACK), tr(STR_OPEN), tr(STR_DIR_UP),
+                                              tr(STR_DIR_DOWN));
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   }
 
