@@ -272,7 +272,7 @@ void MyLibraryActivity::loop() {
   if (!files.empty() && mappedInput.isPressed(MappedInputManager::Button::Confirm) &&
       mappedInput.getHeldTime() >= DELETE_CONFIRM_MS) {
     state = State::FILE_ACTIONS;
-    updateRequired = true;
+    requestUpdate();
     return;
   }
 
