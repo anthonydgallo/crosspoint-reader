@@ -2,7 +2,6 @@
 
 // Essential fonts (always included)
 #include <builtinFonts/bookerly_14_bold.h>
-#include <builtinFonts/bookerly_14_bolditalic.h>
 #include <builtinFonts/bookerly_14_italic.h>
 #include <builtinFonts/bookerly_14_regular.h>
 #include <builtinFonts/notosans_8_regular.h>
@@ -13,47 +12,36 @@
 
 #ifndef OMIT_FONTS
 #include <builtinFonts/bookerly_12_bold.h>
-#include <builtinFonts/bookerly_12_bolditalic.h>
 #include <builtinFonts/bookerly_12_italic.h>
 #include <builtinFonts/bookerly_12_regular.h>
 #include <builtinFonts/bookerly_16_bold.h>
-#include <builtinFonts/bookerly_16_bolditalic.h>
 #include <builtinFonts/bookerly_16_italic.h>
 #include <builtinFonts/bookerly_16_regular.h>
 #include <builtinFonts/bookerly_18_bold.h>
-#include <builtinFonts/bookerly_18_bolditalic.h>
 #include <builtinFonts/bookerly_18_italic.h>
 #include <builtinFonts/bookerly_18_regular.h>
 #include <builtinFonts/notosans_12_bold.h>
-#include <builtinFonts/notosans_12_bolditalic.h>
 #include <builtinFonts/notosans_12_italic.h>
 #include <builtinFonts/notosans_12_regular.h>
 #include <builtinFonts/notosans_14_bold.h>
-#include <builtinFonts/notosans_14_bolditalic.h>
 #include <builtinFonts/notosans_14_italic.h>
 #include <builtinFonts/notosans_14_regular.h>
 #include <builtinFonts/notosans_16_bold.h>
-#include <builtinFonts/notosans_16_bolditalic.h>
 #include <builtinFonts/notosans_16_italic.h>
 #include <builtinFonts/notosans_16_regular.h>
 #include <builtinFonts/notosans_18_bold.h>
-#include <builtinFonts/notosans_18_bolditalic.h>
 #include <builtinFonts/notosans_18_italic.h>
 #include <builtinFonts/notosans_18_regular.h>
 #include <builtinFonts/opendyslexic_8_bold.h>
-#include <builtinFonts/opendyslexic_8_bolditalic.h>
 #include <builtinFonts/opendyslexic_8_italic.h>
 #include <builtinFonts/opendyslexic_8_regular.h>
 #include <builtinFonts/opendyslexic_10_bold.h>
-#include <builtinFonts/opendyslexic_10_bolditalic.h>
 #include <builtinFonts/opendyslexic_10_italic.h>
 #include <builtinFonts/opendyslexic_10_regular.h>
 #include <builtinFonts/opendyslexic_12_bold.h>
-#include <builtinFonts/opendyslexic_12_bolditalic.h>
 #include <builtinFonts/opendyslexic_12_italic.h>
 #include <builtinFonts/opendyslexic_12_regular.h>
 #include <builtinFonts/opendyslexic_14_bold.h>
-#include <builtinFonts/opendyslexic_14_bolditalic.h>
 #include <builtinFonts/opendyslexic_14_italic.h>
 #include <builtinFonts/opendyslexic_14_regular.h>
 #endif  // OMIT_FONTS
