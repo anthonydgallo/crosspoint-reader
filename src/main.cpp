@@ -29,6 +29,8 @@
 #include "activities/rosary/RosaryActivity.h"
 #include "activities/settings/SettingsActivity.h"
 #include "activities/util/FullScreenMessageActivity.h"
+#include "apps/AppManifest.h"
+#include "apps/TextViewerAppActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "util/ButtonNavigator.h"
@@ -226,15 +228,23 @@ void onGoToBrowser() {
   enterNewActivity(new OpdsBookBrowserActivity(renderer, mappedInputManager, onGoHome));
 }
 
-void onGoToRosary() {
+void onOpenApp(const AppManifest& app) {
   exitActivity();
-  enterNewActivity(new RosaryActivity(renderer, mappedInputManager, onGoHome));
+
+  if (app.type == "rosary") {
+    enterNewActivity(new RosaryActivity(renderer, mappedInputManager, onGoHome));
+  } else if (app.type == "textviewer") {
+    enterNewActivity(new TextViewerAppActivity(renderer, mappedInputManager, app, onGoHome));
+  } else {
+    LOG_ERR("MAIN", "Unknown app type: %s", app.type.c_str());
+    onGoHome();
+  }
 }
 
 void onGoHome() {
   exitActivity();
   enterNewActivity(new HomeActivity(renderer, mappedInputManager, onGoToReader, onGoToMyLibrary, onGoToRecentBooks,
-                                    onGoToSettings, onGoToFileTransfer, onGoToBrowser, onGoToRosary));
+                                    onGoToSettings, onGoToFileTransfer, onGoToBrowser, onOpenApp));
 }
 
 void setupDisplayAndFonts() {
