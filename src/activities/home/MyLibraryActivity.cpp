@@ -7,6 +7,7 @@
 #include <algorithm>
 
 #include "MappedInputManager.h"
+#include "activities/util/KeyboardFactory.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "util/StringUtils.h"
@@ -104,7 +105,7 @@ void MyLibraryActivity::loadFiles() {
 }
 
 void MyLibraryActivity::onEnter() {
-  Activity::onEnter();
+  ActivityWithSubactivity::onEnter();
 
   loadFiles();
   selectorIndex = 0;
@@ -113,11 +114,17 @@ void MyLibraryActivity::onEnter() {
 }
 
 void MyLibraryActivity::onExit() {
-  Activity::onExit();
+  ActivityWithSubactivity::onExit();
   files.clear();
 }
 
 void MyLibraryActivity::loop() {
+  // Delegate to subactivity (e.g. keyboard for rename)
+  if (subActivity) {
+    subActivity->loop();
+    return;
+  }
+
   // Delete confirmation state
   if (state == State::DELETE_CONFIRM) {
     if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
@@ -128,6 +135,125 @@ void MyLibraryActivity::loop() {
       deleteError.clear();
       requestUpdate();
     }
+    return;
+  }
+
+  // File actions menu state (4 bottom buttons: Cancel, Delete, Rename, Move)
+  if (state == State::FILE_ACTIONS) {
+    // Volume buttons cancel back to browsing
+    if (mappedInput.wasPressed(MappedInputManager::Button::Up) ||
+        mappedInput.wasPressed(MappedInputManager::Button::Down)) {
+      state = State::BROWSING;
+      requestUpdate();
+      return;
+    }
+    // Back = Cancel
+    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+      state = State::BROWSING;
+      requestUpdate();
+      return;
+    }
+    // Confirm = Delete → go to delete confirmation
+    if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
+      state = State::DELETE_CONFIRM;
+      deleteError.clear();
+      requestUpdate();
+      return;
+    }
+    // Left = Rename → open keyboard
+    if (mappedInput.wasPressed(MappedInputManager::Button::Left)) {
+      startRename();
+      return;
+    }
+    // Right = Move → open move directory browser
+    if (mappedInput.wasPressed(MappedInputManager::Button::Right)) {
+      startMove();
+      return;
+    }
+    // Ignore Confirm release from the long press that entered this state
+    if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+      return;
+    }
+    return;
+  }
+
+  // Move browsing state - directory picker for move destination
+  if (state == State::MOVE_BROWSING) {
+    const int moveListSize = static_cast<int>(moveDirs.size()) + 1;  // +1 for "Move here"
+    const int movePageItems = UITheme::getInstance().getNumberOfItemsPerPage(renderer, true, false, true, false);
+
+    // Long press Back cancels move entirely
+    if (mappedInput.isPressed(MappedInputManager::Button::Back) && mappedInput.getHeldTime() >= GO_HOME_MS) {
+      state = State::BROWSING;
+      moveError.clear();
+      requestUpdate();
+      return;
+    }
+
+    if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+      if (mappedInput.getHeldTime() < DELETE_CONFIRM_MS) {
+        moveError.clear();
+        if (moveSelectorIndex == 0) {
+          // "Move here" selected → execute the move
+          executeMoveHere();
+        } else {
+          // Directory selected → navigate into it
+          const std::string& dirEntry = moveDirs[moveSelectorIndex - 1];
+          std::string dirName = dirEntry.substr(0, dirEntry.length() - 1);  // strip trailing /
+          if (moveBrowsePath.back() != '/') moveBrowsePath += "/";
+          moveBrowsePath += dirName;
+          loadMoveDirs();
+          moveSelectorIndex = 0;
+          requestUpdate();
+        }
+      }
+      return;
+    }
+
+    if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+      if (mappedInput.getHeldTime() < GO_HOME_MS) {
+        moveError.clear();
+        if (moveBrowsePath != "/") {
+          // Go up one directory
+          moveBrowsePath.replace(moveBrowsePath.find_last_of('/'), std::string::npos, "");
+          if (moveBrowsePath.empty()) moveBrowsePath = "/";
+          loadMoveDirs();
+          moveSelectorIndex = 0;
+          requestUpdate();
+        } else {
+          // At root, cancel move
+          state = State::BROWSING;
+          requestUpdate();
+        }
+      }
+      return;
+    }
+
+    // Navigation with all buttons (Left/Right front + Up/Down volume)
+    buttonNavigator.onNextRelease([this, moveListSize] {
+      moveSelectorIndex = ButtonNavigator::nextIndex(static_cast<int>(moveSelectorIndex), moveListSize);
+      moveError.clear();
+      requestUpdate();
+    });
+
+    buttonNavigator.onPreviousRelease([this, moveListSize] {
+      moveSelectorIndex = ButtonNavigator::previousIndex(static_cast<int>(moveSelectorIndex), moveListSize);
+      moveError.clear();
+      requestUpdate();
+    });
+
+    buttonNavigator.onNextContinuous([this, moveListSize, movePageItems] {
+      moveSelectorIndex = ButtonNavigator::nextPageIndex(static_cast<int>(moveSelectorIndex), moveListSize, movePageItems);
+      moveError.clear();
+      requestUpdate();
+    });
+
+    buttonNavigator.onPreviousContinuous([this, moveListSize, movePageItems] {
+      moveSelectorIndex =
+          ButtonNavigator::previousPageIndex(static_cast<int>(moveSelectorIndex), moveListSize, movePageItems);
+      moveError.clear();
+      requestUpdate();
+    });
     return;
   }
 
@@ -142,28 +268,35 @@ void MyLibraryActivity::loop() {
 
   const int pageItems = UITheme::getInstance().getNumberOfItemsPerPage(renderer, true, false, true, false);
 
+  // Long press CONFIRM (1s+) opens file actions menu (Cancel, Delete, Rename, Move)
+  if (!files.empty() && mappedInput.isPressed(MappedInputManager::Button::Confirm) &&
+      mappedInput.getHeldTime() >= DELETE_CONFIRM_MS) {
+    state = State::FILE_ACTIONS;
+    updateRequired = true;
+    return;
+  }
+
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+    if (skipNextConfirmRelease) {
+      skipNextConfirmRelease = false;
+      return;
+    }
     if (files.empty()) {
       return;
     }
 
-    // Long press CONFIRM (1s+) enters delete confirmation
-    if (mappedInput.getHeldTime() >= DELETE_CONFIRM_MS) {
-      state = State::DELETE_CONFIRM;
-      deleteError.clear();
-      requestUpdate();
-      return;
-    }
-
-    if (basepath.back() != '/') basepath += "/";
-    if (files[selectorIndex].back() == '/') {
-      basepath += files[selectorIndex].substr(0, files[selectorIndex].length() - 1);
-      loadFiles();
-      selectorIndex = 0;
-      requestUpdate();
-    } else {
-      onSelectBook(basepath + files[selectorIndex]);
-      return;
+    // Only open on short press (long press already handled above)
+    if (mappedInput.getHeldTime() < DELETE_CONFIRM_MS) {
+      if (basepath.back() != '/') basepath += "/";
+      if (files[selectorIndex].back() == '/') {
+        basepath += files[selectorIndex].substr(0, files[selectorIndex].length() - 1);
+        loadFiles();
+        selectorIndex = 0;
+        requestUpdate();
+      } else {
+        onSelectBook(basepath + files[selectorIndex]);
+        return;
+      }
     }
   }
 
@@ -222,7 +355,7 @@ void MyLibraryActivity::deleteSelectedItem() {
   if (fullPath.back() != '/') fullPath += "/";
   fullPath += itemName;
 
-  Serial.printf("[%lu] [MY_LIBRARY] Deleting: %s\n", millis(), fullPath.c_str());
+  LOG_DBG("MY_LIBRARY", "Deleting: %s", fullPath.c_str());
 
   bool success;
   if (isDir) {
@@ -232,7 +365,7 @@ void MyLibraryActivity::deleteSelectedItem() {
   }
 
   if (success) {
-    Serial.printf("[%lu] [MY_LIBRARY] Deleted successfully: %s\n", millis(), fullPath.c_str());
+    LOG_DBG("MY_LIBRARY", "Deleted successfully: %s", fullPath.c_str());
 
     if (!isDir) {
       RECENT_BOOKS.removeBook(fullPath);
@@ -244,9 +377,189 @@ void MyLibraryActivity::deleteSelectedItem() {
     }
     state = State::BROWSING;
     deleteError.clear();
+    skipNextConfirmRelease = true;
   } else {
-    Serial.printf("[%lu] [MY_LIBRARY] Failed to delete: %s\n", millis(), fullPath.c_str());
+    LOG_ERR("MY_LIBRARY", "Failed to delete: %s", fullPath.c_str());
     deleteError = isDir ? "Folder must be empty" : "Failed to delete file";
+  }
+
+  requestUpdate();
+}
+
+void MyLibraryActivity::startRename() {
+  if (selectorIndex >= files.size()) return;
+
+  std::string itemName = files[selectorIndex];
+  const bool isDir = !itemName.empty() && itemName.back() == '/';
+  if (isDir) itemName = itemName.substr(0, itemName.length() - 1);
+
+  // For files, strip the extension so the user only edits the name
+  std::string extension;
+  if (!isDir) {
+    const auto dotPos = itemName.rfind('.');
+    if (dotPos != std::string::npos) {
+      extension = itemName.substr(dotPos);
+      itemName = itemName.substr(0, dotPos);
+    }
+  }
+
+  state = State::BROWSING;
+
+  {
+    RenderLock lock(*this);
+    exitActivity();
+    enterNewActivity(createKeyboard(
+        renderer, mappedInput, "Rename", itemName, 10,
+        0,      // unlimited length
+        false,  // not password
+        [this, isDir, extension](const std::string& newName) {
+          if (!newName.empty() && selectorIndex < files.size()) {
+            std::string dir = basepath;
+            if (dir.back() != '/') dir += "/";
+
+            std::string oldItemName = files[selectorIndex];
+            if (isDir) oldItemName = oldItemName.substr(0, oldItemName.length() - 1);
+
+            const std::string oldPath = dir + oldItemName;
+            const std::string newFileName = newName + extension;
+            const std::string newPath = dir + (isDir ? newName : newFileName);
+
+            LOG_DBG("MY_LIBRARY", "Renaming: %s -> %s", oldPath.c_str(), newPath.c_str());
+
+            if (Storage.rename(oldPath.c_str(), newPath.c_str())) {
+              LOG_DBG("MY_LIBRARY", "Renamed successfully");
+
+              if (!isDir) {
+                // Update recent books store if this book was tracked
+                const auto bookData = RECENT_BOOKS.getDataFromBook(oldPath);
+                if (!bookData.path.empty()) {
+                  RECENT_BOOKS.removeBook(oldPath);
+                  RECENT_BOOKS.addBook(newPath, bookData.title, bookData.author, bookData.coverBmpPath);
+                }
+              }
+
+              loadFiles();
+              // Select the renamed item
+              selectorIndex = findEntry(isDir ? newName + "/" : newFileName);
+            } else {
+              LOG_ERR("MY_LIBRARY", "Failed to rename");
+            }
+          }
+          exitActivity();
+          requestUpdate();
+        },
+        [this]() {
+          exitActivity();
+          requestUpdate();
+        }));
+  }
+}
+
+void MyLibraryActivity::loadMoveDirs() {
+  moveDirs.clear();
+
+  auto root = Storage.open(moveBrowsePath.c_str());
+  if (!root || !root.isDirectory()) {
+    if (root) root.close();
+    return;
+  }
+
+  root.rewindDirectory();
+
+  char name[500];
+  for (auto file = root.openNextFile(); file; file = root.openNextFile()) {
+    file.getName(name, sizeof(name));
+    if (name[0] == '.' || strcmp(name, "System Volume Information") == 0) {
+      file.close();
+      continue;
+    }
+
+    if (file.isDirectory()) {
+      // Don't show the source directory itself when moving a directory
+      if (moveSourceIsDir) {
+        std::string dirPath = moveBrowsePath;
+        if (dirPath.back() != '/') dirPath += "/";
+        dirPath += name;
+        if (dirPath == moveSourcePath) {
+          file.close();
+          continue;
+        }
+      }
+      moveDirs.emplace_back(std::string(name) + "/");
+    }
+    file.close();
+  }
+  root.close();
+  sortFileList(moveDirs);
+}
+
+void MyLibraryActivity::startMove() {
+  if (selectorIndex >= files.size()) return;
+
+  std::string itemName = files[selectorIndex];
+  moveSourceIsDir = !itemName.empty() && itemName.back() == '/';
+  if (moveSourceIsDir) itemName = itemName.substr(0, itemName.length() - 1);
+
+  moveSourceName = itemName;
+
+  std::string dir = basepath;
+  if (dir.back() != '/') dir += "/";
+  moveSourcePath = dir + moveSourceName;
+
+  // Start browsing from the current directory
+  moveBrowsePath = basepath;
+  moveSelectorIndex = 0;
+  moveError.clear();
+  loadMoveDirs();
+
+  state = State::MOVE_BROWSING;
+  requestUpdate();
+}
+
+void MyLibraryActivity::executeMoveHere() {
+  std::string destDir = moveBrowsePath;
+  if (destDir.back() != '/') destDir += "/";
+
+  const std::string newPath = destDir + moveSourceName;
+
+  // Check if moving to the same location
+  if (newPath == moveSourcePath) {
+    moveError = "Already in this folder";
+    requestUpdate();
+    return;
+  }
+
+  // Check if destination already exists
+  if (Storage.exists(newPath.c_str())) {
+    moveError = "Name already exists here";
+    requestUpdate();
+    return;
+  }
+
+  LOG_DBG("MY_LIBRARY", "Moving: %s -> %s", moveSourcePath.c_str(), newPath.c_str());
+
+  if (Storage.rename(moveSourcePath.c_str(), newPath.c_str())) {
+    LOG_DBG("MY_LIBRARY", "Moved successfully");
+
+    if (!moveSourceIsDir) {
+      // Update recent books store if this book was tracked
+      const auto bookData = RECENT_BOOKS.getDataFromBook(moveSourcePath);
+      if (!bookData.path.empty()) {
+        RECENT_BOOKS.removeBook(moveSourcePath);
+        RECENT_BOOKS.addBook(newPath, bookData.title, bookData.author, bookData.coverBmpPath);
+      }
+    }
+
+    loadFiles();
+    if (selectorIndex >= files.size() && !files.empty()) {
+      selectorIndex = files.size() - 1;
+    }
+
+    state = State::BROWSING;
+    moveError.clear();
+  } else {
+    LOG_ERR("MY_LIBRARY", "Failed to move: %s", moveSourcePath.c_str());
+    moveError = "Failed to move file";
   }
 
   requestUpdate();
@@ -285,6 +598,41 @@ void MyLibraryActivity::render(Activity::RenderLock&&) {
     return;
   }
 
+  // Move browsing state - directory picker for move destination
+  if (state == State::MOVE_BROWSING) {
+    std::string moveFolderName = (moveBrowsePath == "/") ? tr(STR_SD_CARD) : moveBrowsePath.substr(moveBrowsePath.rfind('/') + 1);
+    const std::string headerTitle = "Move to: " + moveFolderName;
+    GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, headerTitle.c_str());
+
+    const int contentTop = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
+    const int contentHeight = pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing;
+
+    const int totalItems = static_cast<int>(moveDirs.size()) + 1;  // +1 for "Move here"
+    GUI.drawList(
+        renderer, Rect{0, contentTop, pageWidth, contentHeight}, totalItems, static_cast<int>(moveSelectorIndex),
+        [this](int index) -> std::string {
+          if (index == 0) return "> Move here <";
+          return moveDirs[index - 1];
+        },
+        nullptr, nullptr, nullptr);
+
+    if (!moveError.empty()) {
+      // Draw error text centered below the header
+      const int errorY = contentTop;
+      const int errorWidth = renderer.getTextWidth(UI_10_FONT_ID, moveError.c_str());
+      // Draw a white background behind the error text so it's readable over the list
+      renderer.fillRect((pageWidth - errorWidth) / 2 - 4, errorY - 2, errorWidth + 8,
+                        renderer.getLineHeight(UI_10_FONT_ID) + 4, false);
+      renderer.drawCenteredText(UI_10_FONT_ID, errorY, moveError.c_str(), true);
+    }
+
+    const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
+    GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+
+    renderer.displayBuffer();
+    return;
+  }
+
   std::string folderName = (basepath == "/") ? tr(STR_SD_CARD) : basepath.substr(basepath.rfind('/') + 1);
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, folderName.c_str());
 
@@ -298,10 +646,15 @@ void MyLibraryActivity::render(Activity::RenderLock&&) {
         [this](int index) { return files[index]; }, nullptr, nullptr, nullptr);
   }
 
-  // Help text
-  const auto labels = mappedInput.mapLabels(basepath == "/" ? tr(STR_HOME) : tr(STR_BACK), tr(STR_OPEN), tr(STR_DIR_UP),
-                                            tr(STR_DIR_DOWN));
-  GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  // File actions menu: show action buttons instead of normal hints
+  if (state == State::FILE_ACTIONS) {
+    const auto labels = mappedInput.mapLabels(tr(STR_CANCEL), "Delete", "Rename", "Move");
+    GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  } else {
+    const auto labels = mappedInput.mapLabels(basepath == "/" ? tr(STR_HOME) : tr(STR_BACK), tr(STR_OPEN), tr(STR_DIR_UP),
+                                              tr(STR_DIR_DOWN));
+    GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  }
 
   renderer.displayBuffer();
 }

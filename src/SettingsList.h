@@ -36,7 +36,8 @@ inline std::vector<SettingInfo> getSettingsList() {
           {StrId::STR_PAGES_1, StrId::STR_PAGES_5, StrId::STR_PAGES_10, StrId::STR_PAGES_15, StrId::STR_PAGES_30},
           "refreshFrequency", StrId::STR_CAT_DISPLAY),
       SettingInfo::Enum(StrId::STR_UI_THEME, &CrossPointSettings::uiTheme,
-                        {StrId::STR_THEME_CLASSIC, StrId::STR_THEME_LYRA}, "uiTheme", StrId::STR_CAT_DISPLAY),
+                        {StrId::STR_THEME_CLASSIC, StrId::STR_THEME_LYRA, StrId::STR_THEME_FILE_BROWSER}, "uiTheme",
+                        StrId::STR_CAT_DISPLAY),
       SettingInfo::Toggle(StrId::STR_SUNLIGHT_FADING_FIX, &CrossPointSettings::fadingFix, "fadingFix",
                           StrId::STR_CAT_DISPLAY),
 
@@ -74,6 +75,9 @@ inline std::vector<SettingInfo> getSettingsList() {
                           StrId::STR_CAT_CONTROLS),
       SettingInfo::Enum(StrId::STR_SHORT_PWR_BTN, &CrossPointSettings::shortPwrBtn,
                         {StrId::STR_IGNORE, StrId::STR_SLEEP, StrId::STR_PAGE_TURN}, "shortPwrBtn",
+                        StrId::STR_CAT_CONTROLS),
+      SettingInfo::Enum(StrId::STR_KEYBOARD_STYLE, &CrossPointSettings::keyboardStyle,
+                        {StrId::STR_KEYBOARD_QWERTY, StrId::STR_KEYBOARD_SCROLL}, "keyboardStyle",
                         StrId::STR_CAT_CONTROLS),
 
       // --- System ---

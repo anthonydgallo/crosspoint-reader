@@ -9,7 +9,7 @@
 
 #include "MappedInputManager.h"
 #include "WifiCredentialStore.h"
-#include "activities/util/KeyboardEntryActivity.h"
+#include "activities/util/KeyboardFactory.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 
@@ -191,7 +191,9 @@ void WifiSelectionActivity::selectNetwork(const int index) {
     // Show password entry
     state = WifiSelectionState::PASSWORD_ENTRY;
     // Don't allow screen updates while changing activity
-    enterNewActivity(new KeyboardEntryActivity(
+    {
+    RenderLock lock(*this);
+    enterNewActivity(createKeyboard(
         renderer, mappedInput, tr(STR_ENTER_WIFI_PASSWORD),
         "",     // No initial text
         50,     // Y position
@@ -206,6 +208,7 @@ void WifiSelectionActivity::selectNetwork(const int index) {
           exitActivity();
           requestUpdate();
         }));
+    }
   } else {
     // Connect directly for open networks
     attemptConnection();

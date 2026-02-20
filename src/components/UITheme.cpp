@@ -33,6 +33,11 @@ void UITheme::setTheme(CrossPointSettings::UI_THEME type) {
       currentTheme = new LyraTheme();
       currentMetrics = &LyraMetrics::values;
       break;
+    case CrossPointSettings::UI_THEME::FILE_BROWSER:
+      LOG_DBG("UI", "Using File Browser theme (Classic base)");
+      currentTheme = new BaseTheme();
+      currentMetrics = &BaseMetrics::values;
+      break;
   }
 }
 

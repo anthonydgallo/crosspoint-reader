@@ -8,7 +8,7 @@
 #include "KOReaderAuthActivity.h"
 #include "KOReaderCredentialStore.h"
 #include "MappedInputManager.h"
-#include "activities/util/KeyboardEntryActivity.h"
+#include "activities/util/KeyboardFactory.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 
@@ -59,7 +59,7 @@ void KOReaderSettingsActivity::handleSelection() {
   if (selectedIndex == 0) {
     // Username
     exitActivity();
-    enterNewActivity(new KeyboardEntryActivity(
+    enterNewActivity(createKeyboard(
         renderer, mappedInput, tr(STR_KOREADER_USERNAME), KOREADER_STORE.getUsername(), 10,
         64,     // maxLength
         false,  // not password
@@ -76,7 +76,7 @@ void KOReaderSettingsActivity::handleSelection() {
   } else if (selectedIndex == 1) {
     // Password
     exitActivity();
-    enterNewActivity(new KeyboardEntryActivity(
+    enterNewActivity(createKeyboard(
         renderer, mappedInput, tr(STR_KOREADER_PASSWORD), KOREADER_STORE.getPassword(), 10,
         64,     // maxLength
         false,  // show characters
@@ -95,7 +95,7 @@ void KOReaderSettingsActivity::handleSelection() {
     const std::string currentUrl = KOREADER_STORE.getServerUrl();
     const std::string prefillUrl = currentUrl.empty() ? "https://" : currentUrl;
     exitActivity();
-    enterNewActivity(new KeyboardEntryActivity(
+    enterNewActivity(createKeyboard(
         renderer, mappedInput, tr(STR_SYNC_SERVER_URL), prefillUrl, 10,
         128,    // maxLength - URLs can be long
         false,  // not password
