@@ -16,18 +16,21 @@
 #include "CrossPointState.h"
 #include "MappedInputManager.h"
 #include "RecentBooksStore.h"
+#include "apps/AppLoader.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "util/StringUtils.h"
 
 int HomeActivity::getMenuItemCount() const {
-  int count = 5;  // My Library, Recents, Rosary, File transfer, Settings
+  // My Library, Recents, [OPDS], [apps...], File transfer, Settings
+  int count = 4;  // My Library, Recents, File transfer, Settings
   if (!recentBooks.empty()) {
     count += recentBooks.size();
   }
   if (hasOpdsUrl) {
     count++;
   }
+  count += static_cast<int>(loadedApps.size());
   return count;
 }
 
@@ -117,6 +120,9 @@ void HomeActivity::onEnter() {
 
   selectorIndex = 0;
 
+  // Discover apps from SD card
+  loadedApps = AppLoader::scanApps();
+
   auto metrics = UITheme::getInstance().getMetrics();
   loadRecentBooks(metrics.homeRecentBooksCount);
 
@@ -188,12 +194,16 @@ void HomeActivity::loop() {
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
     // Calculate dynamic indices based on which options are available
-    int idx = 0;
+    // Menu layout: My Library, Recents, [OPDS], [App 0..N], File Transfer, Settings
     int menuSelectedIndex = selectorIndex - static_cast<int>(recentBooks.size());
+
+    int idx = 0;
     const int myLibraryIdx = idx++;
     const int recentsIdx = idx++;
     const int opdsLibraryIdx = hasOpdsUrl ? idx++ : -1;
-    const int rosaryIdx = idx++;
+    // Apps occupy indices idx..idx+loadedApps.size()-1
+    const int appsStartIdx = idx;
+    idx += static_cast<int>(loadedApps.size());
     const int fileTransferIdx = idx++;
     const int settingsIdx = idx;
 
@@ -205,8 +215,10 @@ void HomeActivity::loop() {
       onRecentsOpen();
     } else if (menuSelectedIndex == opdsLibraryIdx) {
       onOpdsBrowserOpen();
-    } else if (menuSelectedIndex == rosaryIdx) {
-      onRosaryOpen();
+    } else if (menuSelectedIndex >= appsStartIdx &&
+               menuSelectedIndex < appsStartIdx + static_cast<int>(loadedApps.size())) {
+      int appIndex = menuSelectedIndex - appsStartIdx;
+      onAppOpen(loadedApps[appIndex]);
     } else if (menuSelectedIndex == fileTransferIdx) {
       onFileTransferOpen();
     } else if (menuSelectedIndex == settingsIdx) {
@@ -230,17 +242,22 @@ void HomeActivity::render(Activity::RenderLock&&) {
                           std::bind(&HomeActivity::storeCoverBuffer, this));
 
   // Build menu items dynamically
-  std::vector<const char*> menuItems = {tr(STR_BROWSE_FILES), tr(STR_MENU_RECENT_BOOKS), tr(STR_FILE_TRANSFER),
-                                        tr(STR_SETTINGS_TITLE)};
+  // Base items: My Library, Recents, File Transfer, Settings
+  std::vector<std::string> menuItems;
+  menuItems.push_back(tr(STR_BROWSE_FILES));
+  menuItems.push_back(tr(STR_MENU_RECENT_BOOKS));
+
   if (hasOpdsUrl) {
-    // Insert OPDS Browser after Recents
-    menuItems.insert(menuItems.begin() + 2, tr(STR_OPDS_BROWSER));
+    menuItems.push_back(tr(STR_OPDS_BROWSER));
   }
-  // Insert Rosary after OPDS (or after Recents if no OPDS)
-  {
-    int rosaryInsertPos = hasOpdsUrl ? 3 : 2;
-    menuItems.insert(menuItems.begin() + rosaryInsertPos, "Rosary");
+
+  // Insert discovered apps
+  for (const auto& app : loadedApps) {
+    menuItems.push_back(app.name);
   }
+
+  menuItems.push_back(tr(STR_FILE_TRANSFER));
+  menuItems.push_back(tr(STR_SETTINGS_TITLE));
 
   GUI.drawButtonMenu(
       renderer,
@@ -248,7 +265,7 @@ void HomeActivity::render(Activity::RenderLock&&) {
            pageHeight - (metrics.headerHeight + metrics.homeTopPadding + metrics.verticalSpacing * 2 +
                          metrics.buttonHintsHeight)},
       static_cast<int>(menuItems.size()), selectorIndex - recentBooks.size(),
-      [&menuItems](int index) { return std::string(menuItems[index]); }, nullptr);
+      [&menuItems](int index) { return menuItems[index]; }, nullptr);
 
   const auto labels = mappedInput.mapLabels("", tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);

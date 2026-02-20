@@ -1,0 +1,9 @@
+{
+  "name": "Sample Prayers",
+  "type": "textviewer",
+  "version": "1.0",
+  "entries": [
+    {"title": "Prayer of St. Francis", "file": "st-francis.txt"},
+    {"title": "Serenity Prayer", "file": "serenity.txt"}
+  ]
+}
