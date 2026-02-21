@@ -29,6 +29,7 @@ class HomeActivity final : public Activity {
   const std::function<void()> onFileTransferOpen;
   const std::function<void()> onOpdsBrowserOpen;
   const std::function<void(const AppManifest& app)> onAppOpen;
+  const std::function<void()> onAppStoreOpen;
 
   int getMenuItemCount() const;
   bool storeCoverBuffer();    // Store frame buffer for cover image
@@ -43,7 +44,8 @@ class HomeActivity final : public Activity {
                         const std::function<void()>& onMyLibraryOpen, const std::function<void()>& onRecentsOpen,
                         const std::function<void()>& onSettingsOpen, const std::function<void()>& onFileTransferOpen,
                         const std::function<void()>& onOpdsBrowserOpen,
-                        const std::function<void(const AppManifest& app)>& onAppOpen)
+                        const std::function<void(const AppManifest& app)>& onAppOpen,
+                        const std::function<void()>& onAppStoreOpen)
       : Activity("Home", renderer, mappedInput),
         onSelectBook(onSelectBook),
         onMyLibraryOpen(onMyLibraryOpen),
@@ -51,7 +53,8 @@ class HomeActivity final : public Activity {
         onSettingsOpen(onSettingsOpen),
         onFileTransferOpen(onFileTransferOpen),
         onOpdsBrowserOpen(onOpdsBrowserOpen),
-        onAppOpen(onAppOpen) {}
+        onAppOpen(onAppOpen),
+        onAppStoreOpen(onAppStoreOpen) {}
   void onEnter() override;
   void onExit() override;
   void loop() override;
