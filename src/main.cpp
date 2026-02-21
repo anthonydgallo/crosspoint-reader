@@ -27,6 +27,7 @@
 #include "activities/network/CrossPointWebServerActivity.h"
 #include "activities/reader/ReaderActivity.h"
 #include "activities/rosary/RosaryActivity.h"
+#include "activities/appstore/AppStoreActivity.h"
 #include "activities/settings/SettingsActivity.h"
 #include "activities/util/FullScreenMessageActivity.h"
 #include "apps/AppManifest.h"
@@ -241,10 +242,15 @@ void onOpenApp(const AppManifest& app) {
   }
 }
 
+void onGoToAppStore() {
+  exitActivity();
+  enterNewActivity(new AppStoreActivity(renderer, mappedInputManager, onGoHome));
+}
+
 void onGoHome() {
   exitActivity();
   enterNewActivity(new HomeActivity(renderer, mappedInputManager, onGoToReader, onGoToMyLibrary, onGoToRecentBooks,
-                                    onGoToSettings, onGoToFileTransfer, onGoToBrowser, onOpenApp));
+                                    onGoToSettings, onGoToFileTransfer, onGoToBrowser, onOpenApp, onGoToAppStore));
 }
 
 void setupDisplayAndFonts() {

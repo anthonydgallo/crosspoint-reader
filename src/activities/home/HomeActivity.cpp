@@ -22,8 +22,8 @@
 #include "util/StringUtils.h"
 
 int HomeActivity::getMenuItemCount() const {
-  // My Library, Recents, [OPDS], [apps...], File transfer, Settings
-  int count = 4;  // My Library, Recents, File transfer, Settings
+  // My Library, Recents, [OPDS], [apps...], App Store, File transfer, Settings
+  int count = 5;  // My Library, Recents, App Store, File transfer, Settings
   if (!recentBooks.empty()) {
     count += recentBooks.size();
   }
@@ -194,7 +194,7 @@ void HomeActivity::loop() {
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
     // Calculate dynamic indices based on which options are available
-    // Menu layout: My Library, Recents, [OPDS], [App 0..N], File Transfer, Settings
+    // Menu layout: My Library, Recents, [OPDS], [App 0..N], App Store, File Transfer, Settings
     int menuSelectedIndex = selectorIndex - static_cast<int>(recentBooks.size());
 
     int idx = 0;
@@ -204,6 +204,7 @@ void HomeActivity::loop() {
     // Apps occupy indices idx..idx+loadedApps.size()-1
     const int appsStartIdx = idx;
     idx += static_cast<int>(loadedApps.size());
+    const int appStoreIdx = idx++;
     const int fileTransferIdx = idx++;
     const int settingsIdx = idx;
 
@@ -219,6 +220,8 @@ void HomeActivity::loop() {
                menuSelectedIndex < appsStartIdx + static_cast<int>(loadedApps.size())) {
       int appIndex = menuSelectedIndex - appsStartIdx;
       onAppOpen(loadedApps[appIndex]);
+    } else if (menuSelectedIndex == appStoreIdx) {
+      onAppStoreOpen();
     } else if (menuSelectedIndex == fileTransferIdx) {
       onFileTransferOpen();
     } else if (menuSelectedIndex == settingsIdx) {
@@ -242,7 +245,7 @@ void HomeActivity::render(Activity::RenderLock&&) {
                           std::bind(&HomeActivity::storeCoverBuffer, this));
 
   // Build menu items dynamically
-  // Base items: My Library, Recents, File Transfer, Settings
+  // Base items: My Library, Recents, [OPDS], [apps...], App Store, File Transfer, Settings
   std::vector<std::string> menuItems;
   menuItems.push_back(tr(STR_BROWSE_FILES));
   menuItems.push_back(tr(STR_MENU_RECENT_BOOKS));
@@ -256,6 +259,7 @@ void HomeActivity::render(Activity::RenderLock&&) {
     menuItems.push_back(app.name);
   }
 
+  menuItems.push_back(tr(STR_APP_STORE));
   menuItems.push_back(tr(STR_FILE_TRANSFER));
   menuItems.push_back(tr(STR_SETTINGS_TITLE));
 
