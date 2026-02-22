@@ -303,6 +303,12 @@ void WifiSelectionActivity::loop() {
 
   // Check connection progress
   if (state == WifiSelectionState::CONNECTING || state == WifiSelectionState::AUTO_CONNECTING) {
+    // Allow user to cancel connection by pressing Back
+    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+      WiFi.disconnect();
+      startWifiScan();
+      return;
+    }
     checkConnectionStatus();
     return;
   }
@@ -609,6 +615,10 @@ void WifiSelectionActivity::renderConnecting() const {
       ssidInfo.replace(22, ssidInfo.length() - 22, "...");
     }
     renderer.drawCenteredText(UI_10_FONT_ID, top, ssidInfo.c_str());
+
+    // Show cancel hint so the user knows they can press Back
+    const auto labels = mappedInput.mapLabels(tr(STR_CANCEL), "", "", "");
+    GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   }
 }
 
