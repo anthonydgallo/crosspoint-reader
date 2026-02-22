@@ -1,0 +1,10 @@
+{
+  "name": "Focus Sprint Coach",
+  "type": "textviewer",
+  "version": "1.0",
+  "entries": [
+    {"title": "5-Minute Reset", "file": "5-minute-reset.txt"},
+    {"title": "15-Minute Sprint", "file": "15-minute-sprint.txt"},
+    {"title": "30-Minute Deep Work", "file": "30-minute-deep-work.txt"}
+  ]
+}

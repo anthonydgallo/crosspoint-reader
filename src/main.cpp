@@ -31,6 +31,9 @@
 #include "activities/settings/SettingsActivity.h"
 #include "activities/util/FullScreenMessageActivity.h"
 #include "apps/AppManifest.h"
+#include "apps/CalculatorAppActivity.h"
+#include "apps/MinesweeperAppActivity.h"
+#include "apps/RandomQuoteAppActivity.h"
 #include "apps/TextViewerAppActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
@@ -234,8 +237,14 @@ void onOpenApp(const AppManifest& app) {
 
   if (app.type == "rosary") {
     enterNewActivity(new RosaryActivity(renderer, mappedInputManager, onGoHome));
+  } else if (app.type == "minesweeper") {
+    enterNewActivity(new MinesweeperAppActivity(renderer, mappedInputManager, app, onGoHome));
+  } else if (app.type == "calculator") {
+    enterNewActivity(new CalculatorAppActivity(renderer, mappedInputManager, app, onGoHome));
   } else if (app.type == "textviewer") {
     enterNewActivity(new TextViewerAppActivity(renderer, mappedInputManager, app, onGoHome));
+  } else if (app.type == "randomquote") {
+    enterNewActivity(new RandomQuoteAppActivity(renderer, mappedInputManager, app, onGoHome));
   } else {
     LOG_ERR("MAIN", "Unknown app type: %s", app.type.c_str());
     onGoHome();
