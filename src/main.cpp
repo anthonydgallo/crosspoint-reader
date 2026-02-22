@@ -26,6 +26,7 @@
 #include "activities/home/RecentBooksActivity.h"
 #include "activities/network/CrossPointWebServerActivity.h"
 #include "activities/reader/ReaderActivity.h"
+#include "activities/art/ArtGalleryActivity.h"
 #include "activities/rosary/RosaryActivity.h"
 #include "activities/appstore/AppStoreActivity.h"
 #include "activities/settings/SettingsActivity.h"
@@ -237,6 +238,8 @@ void onOpenApp(const AppManifest& app) {
 
   if (app.type == "rosary") {
     enterNewActivity(new RosaryActivity(renderer, mappedInputManager, onGoHome));
+  } else if (app.type == "art") {
+    enterNewActivity(new ArtGalleryActivity(renderer, mappedInputManager, onGoHome));
   } else if (app.type == "minesweeper") {
     enterNewActivity(new MinesweeperAppActivity(renderer, mappedInputManager, app, onGoHome));
   } else if (app.type == "calculator") {

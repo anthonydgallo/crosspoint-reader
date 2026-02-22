@@ -8,6 +8,7 @@
 //
 // Supported app types:
 //   "rosary"     - Built-in rosary prayer activity (firmware provides the UI)
+//   "art"        - Built-in art gallery with procedural artwork for e-ink display
 //   "minesweeper" - Built-in minesweeper game
 //   "calculator"  - Built-in four-operation calculator
 //   "textviewer" - Generic text viewer that displays a list of text files
