@@ -1,0 +1,12 @@
+{
+  "name": "Stoic Wisdom",
+  "type": "textviewer",
+  "version": "1.0",
+  "entries": [
+    {"title": "Marcus Aurelius", "file": "marcus-aurelius.txt"},
+    {"title": "Epictetus", "file": "epictetus.txt"},
+    {"title": "Seneca", "file": "seneca.txt"},
+    {"title": "On Adversity", "file": "on-adversity.txt"},
+    {"title": "On Time & Death", "file": "on-time.txt"}
+  ]
+}
