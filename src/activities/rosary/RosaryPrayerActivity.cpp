@@ -340,9 +340,11 @@ void RosaryPrayerActivity::render() const {
   int contentY = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
 
   // --- Progress bar ---
-  GUI.drawProgressBar(renderer, Rect{sidePadding, contentY, pageWidth - sidePadding * 2, 6}, currentStep + 1,
-                      RosaryData::TOTAL_STEPS);
-  contentY += 14;
+  constexpr int progressBarHeight = 6;
+  GUI.drawProgressBar(renderer, Rect{sidePadding, contentY, pageWidth - sidePadding * 2, progressBarHeight},
+                      currentStep + 1, RosaryData::TOTAL_STEPS);
+  // Account for bar height + 15px gap to percentage text + text height + padding
+  contentY += progressBarHeight + 15 + renderer.getLineHeight(UI_10_FONT_ID) + 4;
 
   // --- Step title (prayer type) ---
   std::string title = getStepTitle();
