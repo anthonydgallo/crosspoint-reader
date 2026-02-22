@@ -1,0 +1,15 @@
+{
+  "name": "Pocket First Aid",
+  "type": "textviewer",
+  "version": "1.0",
+  "entries": [
+    {"title": "CPR Steps", "file": "cpr.txt"},
+    {"title": "Choking Response", "file": "choking.txt"},
+    {"title": "Bleeding Control", "file": "bleeding.txt"},
+    {"title": "Burns Treatment", "file": "burns.txt"},
+    {"title": "Fractures & Sprains", "file": "fractures.txt"},
+    {"title": "Heat & Cold Illness", "file": "heat-cold.txt"},
+    {"title": "Allergic Reactions", "file": "allergic.txt"},
+    {"title": "Bites & Stings", "file": "bites.txt"}
+  ]
+}

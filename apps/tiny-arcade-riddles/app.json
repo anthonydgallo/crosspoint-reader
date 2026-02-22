@@ -1,0 +1,10 @@
+{
+  "name": "Tiny Arcade: Riddles",
+  "type": "textviewer",
+  "version": "1.0",
+  "entries": [
+    {"title": "Round 1: Warmup", "file": "round-1-warmup.txt"},
+    {"title": "Round 2: Logic", "file": "round-2-logic.txt"},
+    {"title": "Answers", "file": "answers.txt"}
+  ]
+}

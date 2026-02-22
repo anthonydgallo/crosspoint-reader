@@ -15,6 +15,13 @@ SD Card Root/
 │   │   ├── app.json
 │   │   ├── st-francis.txt
 │   │   └── serenity.txt
+│   ├── minesweeper/
+│   │   └── app.json
+│   ├── calculator/
+│   │   └── app.json
+│   ├── bible-random-quotes/
+│   │   ├── app.json
+│   │   └── john-3-16.txt
 │   └── (your custom apps here)
 ├── (your ebooks)
 └── ...
@@ -63,11 +70,45 @@ The `app.json` manifest:
 
 **Text files** should be plain `.txt` files encoded in UTF-8. Long text will automatically word-wrap and support page-by-page navigation.
 
+### Random Quote App
+
+The `randomquote` type displays one full-screen quote at a time and picks a random new quote when the user presses Confirm, Up, or Down.
+
+Create a folder under `/apps/` with this structure:
+
+```
+apps/my-quotes/
+├── app.json
+├── quote1.txt
+├── quote2.txt
+└── quote3.txt
+```
+
+The `app.json` manifest:
+
+```json
+{
+  "name": "Daily Verses",
+  "type": "randomquote",
+  "version": "1.0",
+  "entries": [
+    {"title": "John 3:16", "file": "quote1.txt"},
+    {"title": "Psalm 23:1", "file": "quote2.txt"},
+    {"title": "Romans 8:28", "file": "quote3.txt"}
+  ]
+}
+```
+
+Each entry should contain one short quote. The entry `title` is shown as the verse reference at the bottom of the screen.
+
 ### Built-in App Types
 
 Some app types have specialized UI built into the firmware:
 
 - `rosary` - Holy Rosary prayer guide with bead visualization and decade tracking
+- `minesweeper` - 8x8 minesweeper game (tap confirm to reveal, hold confirm to flag)
+- `calculator` - Simple integer calculator with +, -, *, and /
+- `randomquote` - Full-screen random quote viewer for short inspirational texts
 
 These types only require a minimal `app.json` manifest to activate them.
 

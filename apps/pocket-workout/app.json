@@ -1,0 +1,10 @@
+{
+  "name": "Pocket Workout",
+  "type": "textviewer",
+  "version": "1.0",
+  "entries": [
+    {"title": "Desk Mobility (6 min)", "file": "desk-mobility-6min.txt"},
+    {"title": "Walk Ladder (10 min)", "file": "walk-ladder-10min.txt"},
+    {"title": "Strength Snack (8 min)", "file": "strength-snack-8min.txt"}
+  ]
+}

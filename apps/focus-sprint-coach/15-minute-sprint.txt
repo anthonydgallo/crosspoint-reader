@@ -1,0 +1,25 @@
+15-MINUTE SPRINT
+
+Goal: produce one visible output in 15 minutes.
+Examples: one drafted paragraph, one fixed bug,
+one cleaned section, one answered email batch.
+
+0:00-2:00 Plan
+- Pick one output
+- Define done in one line
+
+2:00-12:00 Execute
+- Work in silence
+- If blocked, write "BLOCKED BY: ___" and keep moving
+
+12:00-14:00 Finish Pass
+- Tighten wording or test result
+- Remove obvious errors
+
+14:00-15:00 Log
+Write:
+- What was finished
+- Next step (single action)
+
+Rule:
+Done beats perfect. Ship the small win.

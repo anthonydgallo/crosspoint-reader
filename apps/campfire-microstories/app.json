@@ -1,0 +1,10 @@
+{
+  "name": "Campfire Microstories",
+  "type": "textviewer",
+  "version": "1.0",
+  "entries": [
+    {"title": "The Last Signal", "file": "the-last-signal.txt"},
+    {"title": "Night Shift Library", "file": "night-shift-library.txt"},
+    {"title": "Paper Map to Morning", "file": "paper-map-to-morning.txt"}
+  ]
+}
