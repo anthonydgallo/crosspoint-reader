@@ -8,7 +8,10 @@
 //
 // Supported app types:
 //   "rosary"     - Built-in rosary prayer activity (firmware provides the UI)
+//   "minesweeper" - Built-in minesweeper game
+//   "calculator"  - Built-in four-operation calculator
 //   "textviewer" - Generic text viewer that displays a list of text files
+//   "randomquote" - Full-screen random quote viewer using text files
 //
 // Example app.json for a textviewer app:
 // {
@@ -23,11 +26,11 @@
 
 struct AppManifest {
   std::string name;     // Display name shown in the menu
-  std::string type;     // App type identifier (e.g., "rosary", "textviewer")
+  std::string type;     // App type identifier (e.g., "rosary", "textviewer", "randomquote")
   std::string path;     // Absolute path to app folder on SD card (e.g., "/apps/rosary")
   std::string version;  // Version string from manifest
 
-  // For "textviewer" type apps: ordered list of text entries
+  // For "textviewer" and "randomquote" type apps: ordered list of text entries
   struct Entry {
     std::string title;  // Display title for this entry
     std::string file;   // Filename relative to app folder (e.g., "morning.txt")

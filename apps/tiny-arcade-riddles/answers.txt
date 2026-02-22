@@ -1,0 +1,35 @@
+TINY ARCADE ANSWERS
+
+Round 1:
+1) An echo.
+2) Footsteps.
+3) A piano.
+4) A map.
+5) A stamp.
+Bonus:
+- A towel.
+- A needle.
+- A teapot.
+
+Round 2:
+Puzzle A:
+Turn switch 1 on for a while, then off.
+Turn switch 2 on and enter room.
+If bulb is on -> switch 2.
+If bulb is off but warm -> switch 1.
+If bulb is off and cold -> switch 3.
+
+Puzzle B:
+Order does not matter; each player has a 50% chance.
+
+Puzzle C:
+Ask either guard:
+"If I asked the other guard whether this door is safe,
+would they say yes?"
+Then choose the opposite of that answer.
+
+Puzzle D:
+Take chicken across. Return alone.
+Take fox across. Bring chicken back.
+Take grain across. Return alone.
+Take chicken across.

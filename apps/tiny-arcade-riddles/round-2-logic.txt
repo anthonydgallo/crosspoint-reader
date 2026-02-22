@@ -1,0 +1,24 @@
+TINY ARCADE: ROUND 2 (LOGIC)
+
+Puzzle A: Three Switches
+You are outside a room with 3 light switches.
+Inside the room is 1 bulb. You may enter the room only once.
+How do you determine which switch controls the bulb?
+
+Puzzle B: Coin Flip Race
+You and a friend each flip one fair coin.
+If both coins match, you win.
+If they differ, your friend wins.
+Should you go first, second, or does order not matter?
+
+Puzzle C: Door Guards
+Two doors: one leads to safety, one to trouble.
+Two guards: one always tells truth, one always lies.
+You may ask one guard one yes/no question.
+What do you ask to pick the safe door?
+
+Puzzle D: River Crossing Lite
+A fox, a chicken, and grain must cross a river in a boat
+that can carry only you plus one item.
+If left alone: fox eats chicken, chicken eats grain.
+How do you get all three across safely?
