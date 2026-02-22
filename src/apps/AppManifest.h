@@ -8,6 +8,7 @@
 //
 // Supported app types:
 //   "rosary"     - Built-in rosary prayer activity (firmware provides the UI)
+//   "art"        - Built-in art gallery with procedural artwork for e-ink display
 //   "textviewer" - Generic text viewer that displays a list of text files
 //
 // Example app.json for a textviewer app:
