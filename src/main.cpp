@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <Epub.h>
+#include <FontDecompressor.h>
 #include <GfxRenderer.h>
 #include <HalDisplay.h>
 #include <HalGPIO.h>
@@ -12,7 +13,6 @@
 
 #include <cstring>
 
-#include "Battery.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "KOReaderCredentialStore.h"
@@ -42,11 +42,13 @@
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "util/ButtonNavigator.h"
+#include "util/ScreenshotUtil.h"
 
 HalDisplay display;
 HalGPIO gpio;
 MappedInputManager mappedInputManager(gpio);
 GfxRenderer renderer(display);
+FontDecompressor fontDecompressor;
 Activity* currentActivity;
 
 // Fonts
@@ -201,9 +203,9 @@ void onGoHome();
 void onGoToMyLibraryWithPath(const std::string& path);
 void onGoToRecentBooks();
 void onGoToReader(const std::string& initialEpubPath) {
+  const std::string bookPath = initialEpubPath;  // Copy before exitActivity() invalidates the reference
   exitActivity();
-  enterNewActivity(
-      new ReaderActivity(renderer, mappedInputManager, initialEpubPath, onGoHome, onGoToMyLibraryWithPath));
+  enterNewActivity(new ReaderActivity(renderer, mappedInputManager, bookPath, onGoHome, onGoToMyLibraryWithPath));
 }
 
 void onGoToFileTransfer() {
@@ -282,6 +284,12 @@ void setupDisplayAndFonts() {
   display.begin();
   renderer.begin();
   LOG_DBG("MAIN", "Display initialized");
+
+  // Initialize font decompressor for compressed reader fonts
+  if (!fontDecompressor.init()) {
+    LOG_ERR("MAIN", "Font decompressor init failed");
+  }
+  renderer.setFontDecompressor(&fontDecompressor);
   renderer.insertFont(BOOKERLY_14_FONT_ID, bookerly14FontFamily);
 #ifndef OMIT_FONTS
   renderer.insertFont(BOOKERLY_12_FONT_ID, bookerly12FontFamily);
@@ -424,6 +432,20 @@ void loop() {
     powerManager.setPowerSaving(false);  // Restore normal CPU frequency on user activity
   }
 
+  static bool screenshotButtonsReleased = true;
+  if (gpio.isPressed(HalGPIO::BTN_POWER) && gpio.isPressed(HalGPIO::BTN_DOWN)) {
+    if (screenshotButtonsReleased) {
+      screenshotButtonsReleased = false;
+      if (currentActivity) {
+        Activity::RenderLock lock(*currentActivity);
+        ScreenshotUtil::takeScreenshot(renderer);
+      }
+    }
+    return;
+  } else {
+    screenshotButtonsReleased = true;
+  }
+
   const unsigned long sleepTimeoutMs = SETTINGS.getSleepTimeoutMs();
   if (millis() - lastActivityTime >= sleepTimeoutMs) {
     LOG_DBG("SLP", "Auto-sleep triggered after %lu ms of inactivity", sleepTimeoutMs);
@@ -433,6 +455,10 @@ void loop() {
   }
 
   if (gpio.isPressed(HalGPIO::BTN_POWER) && gpio.getHeldTime() > SETTINGS.getPowerButtonDuration()) {
+    // If the screenshot combination is potentially being pressed, don't sleep
+    if (gpio.isPressed(HalGPIO::BTN_DOWN)) {
+      return;
+    }
     enterDeepSleep();
     // This should never be hit as `enterDeepSleep` calls esp_deep_sleep_start
     return;

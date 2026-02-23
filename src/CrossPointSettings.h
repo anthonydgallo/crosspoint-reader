@@ -120,7 +120,7 @@ class CrossPointSettings {
   enum HIDE_BATTERY_PERCENTAGE { HIDE_NEVER = 0, HIDE_READER = 1, HIDE_ALWAYS = 2, HIDE_BATTERY_PERCENTAGE_COUNT };
 
   // UI Theme
-  enum UI_THEME { CLASSIC = 0, LYRA = 1, FILE_BROWSER = 2, UI_THEME_COUNT };
+  enum UI_THEME { CLASSIC = 0, LYRA = 1, LYRA_3_COVERS = 2, FILE_BROWSER = 3, UI_THEME_COUNT };
 
   // Keyboard style
   enum KEYBOARD_STYLE { KEYBOARD_QWERTY = 0, KEYBOARD_SCROLL = 1, KEYBOARD_STYLE_COUNT };
@@ -198,6 +198,12 @@ class CrossPointSettings {
   bool saveToFile() const;
   bool loadFromFile();
 
+  static void validateFrontButtonMapping(CrossPointSettings& settings);
+
+ private:
+  bool loadFromBinaryFile();
+
+ public:
   float getReaderLineCompression() const;
   unsigned long getSleepTimeoutMs() const;
   int getRefreshFrequency() const;
