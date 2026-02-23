@@ -36,6 +36,7 @@
 #include "apps/CalculatorAppActivity.h"
 #include "apps/MinesweeperAppActivity.h"
 #include "apps/RandomQuoteAppActivity.h"
+#include "apps/TextEditorAppActivity.h"
 #include "apps/TextViewerAppActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
@@ -249,6 +250,8 @@ void onOpenApp(const AppManifest& app) {
     enterNewActivity(new TextViewerAppActivity(renderer, mappedInputManager, app, onGoHome));
   } else if (app.type == "randomquote") {
     enterNewActivity(new RandomQuoteAppActivity(renderer, mappedInputManager, app, onGoHome));
+  } else if (app.type == "texteditor") {
+    enterNewActivity(new TextEditorAppActivity(renderer, mappedInputManager, app, onGoHome));
   } else {
     LOG_ERR("MAIN", "Unknown app type: %s", app.type.c_str());
     onGoHome();
