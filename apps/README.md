@@ -101,6 +101,59 @@ The `app.json` manifest:
 
 Each entry should contain one short quote. The entry `title` is shown as the verse reference at the bottom of the screen.
 
+### Flashcard App
+
+The `flashcard` type provides a spaced-repetition study experience similar to Anki. Cards are stored in TSV (tab-separated values) files where each line is `front<TAB>back`.
+
+Create a folder under `/apps/` with this structure:
+
+```
+apps/my-flashcards/
+├── app.json
+├── deck1.tsv
+└── deck2.tsv
+```
+
+The `app.json` manifest:
+
+```json
+{
+  "name": "My Flashcards",
+  "type": "flashcard",
+  "version": "1.0",
+  "entries": [
+    {"title": "Spanish Basics", "file": "deck1.tsv"},
+    {"title": "World Capitals", "file": "deck2.tsv"}
+  ]
+}
+```
+
+Each entry points to a `.tsv` deck file. The TSV format is:
+
+```
+# Lines starting with # are comments
+front text	back text
+another front	another back
+```
+
+This is compatible with the standard Anki TSV export format (Notes in Plain Text).
+
+**Features:**
+- **Spaced repetition (SM-2):** Cards are scheduled using the SuperMemo 2 algorithm. Cards you find easy are shown less often; cards you struggle with are shown more frequently.
+- **Review ratings:** After revealing the answer, rate your recall as Again, Hard, Good, or Easy.
+- **Progress persistence:** Review state (intervals, ease factors, due dates) is saved to the SD card and persists across power cycles.
+- **New card limit:** Up to 20 new cards are introduced per study session.
+- **Browse mode:** Browse all cards in a deck without affecting review scheduling.
+- **Deck stats:** View total, due, new, and learned card counts before studying.
+
+**Controls in review mode:**
+- **Confirm** or **Right/Down**: Reveal the answer
+- **Left/Right** on answer screen: Select rating (Again / Hard / Good / Easy)
+- **Confirm** on answer screen: Submit rating and advance
+- **Back**: Return to previous screen
+
+**Card file limits:** TSV files are limited to ~4KB due to device memory constraints.
+
 ### Built-in App Types
 
 Some app types have specialized UI built into the firmware:
@@ -109,6 +162,7 @@ Some app types have specialized UI built into the firmware:
 - `minesweeper` - 8x8 minesweeper game (tap confirm to reveal, hold confirm to flag)
 - `calculator` - Simple integer calculator with +, -, *, and /
 - `randomquote` - Full-screen random quote viewer for short inspirational texts
+- `flashcard` - Spaced-repetition flashcard study app with SM-2 scheduling
 
 These types only require a minimal `app.json` manifest to activate them.
 
