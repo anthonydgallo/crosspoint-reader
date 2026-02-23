@@ -14,6 +14,7 @@
 //   "textviewer" - Generic text viewer that displays a list of text files
 //   "randomquote" - Full-screen random quote viewer using text files
 //   "texteditor" - Simple text editor for creating/editing .txt files
+//   "flashcard"  - Spaced-repetition flashcard study app using TSV card files
 //
 // Example app.json for a textviewer app:
 // {
@@ -32,7 +33,7 @@ struct AppManifest {
   std::string path;     // Absolute path to app folder on SD card (e.g., "/apps/rosary")
   std::string version;  // Version string from manifest
 
-  // For "textviewer" and "randomquote" type apps: ordered list of text entries
+  // For "textviewer", "randomquote", and "flashcard" type apps: ordered list of entries
   struct Entry {
     std::string title;  // Display title for this entry
     std::string file;   // Filename relative to app folder (e.g., "morning.txt")

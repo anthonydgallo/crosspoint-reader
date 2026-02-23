@@ -35,6 +35,7 @@
 #include "apps/AppManifest.h"
 #include "apps/CalculatorAppActivity.h"
 #include "apps/MinesweeperAppActivity.h"
+#include "apps/FlashcardAppActivity.h"
 #include "apps/RandomQuoteAppActivity.h"
 #include "apps/TextEditorAppActivity.h"
 #include "apps/TextViewerAppActivity.h"
@@ -252,6 +253,8 @@ void onOpenApp(const AppManifest& app) {
     enterNewActivity(new RandomQuoteAppActivity(renderer, mappedInputManager, app, onGoHome));
   } else if (app.type == "texteditor") {
     enterNewActivity(new TextEditorAppActivity(renderer, mappedInputManager, app, onGoHome));
+  } else if (app.type == "flashcard") {
+    enterNewActivity(new FlashcardAppActivity(renderer, mappedInputManager, app, onGoHome));
   } else {
     LOG_ERR("MAIN", "Unknown app type: %s", app.type.c_str());
     onGoHome();
@@ -271,7 +274,8 @@ void onGoToAppsMenu() {
 void onGoHome() {
   exitActivity();
   enterNewActivity(new HomeActivity(renderer, mappedInputManager, onGoToReader, onGoToMyLibrary, onGoToRecentBooks,
-                                    onGoToSettings, onGoToFileTransfer, onGoToBrowser, onGoToAppsMenu));
+                                    onGoToSettings, onGoToFileTransfer, onGoToBrowser, onGoToAppsMenu,
+                                    onGoToAppStore));
 }
 
 void setupDisplayAndFonts() {

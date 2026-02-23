@@ -363,6 +363,7 @@ enum class StrId : uint16_t {
   STR_INSTALLING_APP,
   STR_INSTALL_COMPLETE,
   STR_INSTALL_FAILED,
+  STR_HIDE_OPDS_BROWSER,
   // Sentinel - must be last
   _COUNT
 };

@@ -23,21 +23,23 @@ class HttpDownloader {
    * Fetch text content from a URL.
    * @param url The URL to fetch
    * @param outContent The fetched content (output)
+   * @param useAuth If true, send configured OPDS Basic auth credentials
    * @return true if fetch succeeded, false on error
    */
-  static bool fetchUrl(const std::string& url, std::string& outContent);
+  static bool fetchUrl(const std::string& url, std::string& outContent, bool useAuth = false);
 
-  static bool fetchUrl(const std::string& url, Stream& stream);
+  static bool fetchUrl(const std::string& url, Stream& stream, bool useAuth = false);
 
   /**
    * Download a file to the SD card.
    * @param url The URL to download
    * @param destPath The destination path on SD card
    * @param progress Optional progress callback
+   * @param useAuth If true, send configured OPDS Basic auth credentials
    * @return DownloadError indicating success or failure type
    */
   static DownloadError downloadToFile(const std::string& url, const std::string& destPath,
-                                      ProgressCallback progress = nullptr);
+                                      ProgressCallback progress = nullptr, bool useAuth = false);
 
  private:
   static constexpr size_t DOWNLOAD_CHUNK_SIZE = 1024;
