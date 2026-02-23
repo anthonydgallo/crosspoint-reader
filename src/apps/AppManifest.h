@@ -13,6 +13,7 @@
 //   "calculator"  - Built-in four-operation calculator
 //   "textviewer" - Generic text viewer that displays a list of text files
 //   "randomquote" - Full-screen random quote viewer using text files
+//   "texteditor" - Simple text editor for creating/editing .txt files
 //   "flashcard"  - Spaced-repetition flashcard study app using TSV card files
 //
 // Example app.json for a textviewer app:
