@@ -2,6 +2,9 @@
 
 #include <Arduino.h>
 #include <GfxRenderer.h>
+#include <HalStorage.h>
+#include <Logging.h>
+#include <Serialization.h>
 
 #include <algorithm>
 #include <string>
@@ -9,14 +12,33 @@
 #include "components/UITheme.h"
 #include "fontIds.h"
 
+namespace {
+constexpr uint8_t MINESWEEPER_SAVE_VERSION = 1;
+constexpr char MINESWEEPER_SAVE_FILE[] = "/.crosspoint/minesweeper.bin";
+}  // namespace
+
 void MinesweeperAppActivity::onEnter() {
   Activity::onEnter();
   randomSeed(static_cast<unsigned long>(millis()));
-  resetGame();
+
+  if (!loadState()) {
+    resetGame();
+  }
+
+  confirmingExit = false;
   requestUpdate();
 }
 
-void MinesweeperAppActivity::onExit() { Activity::onExit(); }
+void MinesweeperAppActivity::onExit() {
+  // Save state if game is in progress (not lost, not won)
+  if (boardInitialized && !gameOver && !victory) {
+    saveState();
+  } else {
+    clearSavedState();
+  }
+
+  Activity::onExit();
+}
 
 void MinesweeperAppActivity::resetGame() {
   for (int r = 0; r < kRows; r++) {
@@ -218,8 +240,95 @@ void MinesweeperAppActivity::checkWin() {
   flaggedCount = kMines;
 }
 
+bool MinesweeperAppActivity::saveState() const {
+  Storage.mkdir("/.crosspoint");
+
+  FsFile file;
+  if (!Storage.openFileForWrite("MSW", MINESWEEPER_SAVE_FILE, file)) {
+    LOG_ERR("MSW", "Failed to open save file for writing");
+    return false;
+  }
+
+  serialization::writePod(file, MINESWEEPER_SAVE_VERSION);
+  serialization::writePod(file, board);
+  serialization::writePod(file, cursorRow);
+  serialization::writePod(file, cursorCol);
+  serialization::writePod(file, boardInitialized);
+  serialization::writePod(file, gameOver);
+  serialization::writePod(file, victory);
+  serialization::writePod(file, revealedSafeCount);
+  serialization::writePod(file, flaggedCount);
+
+  file.close();
+  LOG_DBG("MSW", "Game state saved");
+  return true;
+}
+
+bool MinesweeperAppActivity::loadState() {
+  FsFile file;
+  if (!Storage.openFileForRead("MSW", MINESWEEPER_SAVE_FILE, file)) {
+    return false;
+  }
+
+  uint8_t version;
+  serialization::readPod(file, version);
+  if (version != MINESWEEPER_SAVE_VERSION) {
+    LOG_ERR("MSW", "Unknown save version %u", version);
+    file.close();
+    return false;
+  }
+
+  serialization::readPod(file, board);
+  serialization::readPod(file, cursorRow);
+  serialization::readPod(file, cursorCol);
+  serialization::readPod(file, boardInitialized);
+  serialization::readPod(file, gameOver);
+  serialization::readPod(file, victory);
+  serialization::readPod(file, revealedSafeCount);
+  serialization::readPod(file, flaggedCount);
+
+  file.close();
+
+  // If the saved game was lost or won, reset instead
+  if (gameOver || victory) {
+    LOG_DBG("MSW", "Saved game was finished, resetting");
+    resetGame();
+    clearSavedState();
+    return true;
+  }
+
+  LOG_DBG("MSW", "Game state restored");
+  return true;
+}
+
+void MinesweeperAppActivity::clearSavedState() {
+  if (Storage.exists(MINESWEEPER_SAVE_FILE)) {
+    Storage.remove(MINESWEEPER_SAVE_FILE);
+    LOG_DBG("MSW", "Saved state cleared");
+  }
+}
+
 void MinesweeperAppActivity::loop() {
+  // Exit confirmation state
+  if (confirmingExit) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
+      onGoHome();
+      return;
+    }
+    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+      confirmingExit = false;
+      requestUpdate();
+    }
+    return;
+  }
+
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+    // If game is in progress, ask for confirmation before exiting
+    if (boardInitialized && !gameOver && !victory) {
+      confirmingExit = true;
+      requestUpdate();
+      return;
+    }
     onGoHome();
     return;
   }
@@ -265,6 +374,19 @@ void MinesweeperAppActivity::render(Activity::RenderLock&&) {
   const int pageWidth = renderer.getScreenWidth();
   const int pageHeight = renderer.getScreenHeight();
   const auto metrics = UITheme::getInstance().getMetrics();
+
+  if (confirmingExit) {
+    GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, manifest.name.c_str());
+
+    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 - 30, "Exit game?", true, EpdFontFamily::BOLD);
+    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2, "Your progress will be saved.", true);
+
+    const auto labels = mappedInput.mapLabels("\x11 Cancel", "Exit", "", "");
+    GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+
+    renderer.displayBuffer();
+    return;
+  }
 
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, manifest.name.c_str());
 

@@ -359,7 +359,7 @@ void MyLibraryActivity::deleteSelectedItem() {
 
   bool success;
   if (isDir) {
-    success = Storage.rmdir(fullPath.c_str());
+    success = Storage.removeDir(fullPath.c_str());
   } else {
     success = Storage.remove(fullPath.c_str());
   }
@@ -380,7 +380,7 @@ void MyLibraryActivity::deleteSelectedItem() {
     skipNextConfirmRelease = true;
   } else {
     LOG_ERR("MY_LIBRARY", "Failed to delete: %s", fullPath.c_str());
-    deleteError = isDir ? "Folder must be empty" : "Failed to delete file";
+    deleteError = isDir ? "Failed to delete folder" : "Failed to delete file";
   }
 
   requestUpdate();
