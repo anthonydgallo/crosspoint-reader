@@ -179,6 +179,8 @@ class CrossPointSettings {
   uint8_t embeddedStyle = 1;
   // Keyboard style for text entry (0 = QWERTY grid, 1 = scroll strip)
   uint8_t keyboardStyle = KEYBOARD_QWERTY;
+  // Hide OPDS Browser from the home menu (0 = show, 1 = hide)
+  uint8_t hideOpdsBrowser = 0;
 
   ~CrossPointSettings() = default;
 
