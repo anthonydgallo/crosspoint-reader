@@ -21,8 +21,8 @@
 #include "util/StringUtils.h"
 
 int HomeActivity::getMenuItemCount() const {
-  // My Library, Recents, [OPDS], Apps, File transfer, Settings
-  int count = 5;  // My Library, Recents, Apps, File transfer, Settings
+  // My Library, Recents, [OPDS], App Store, Apps, File transfer, Settings
+  int count = 6;  // My Library, Recents, App Store, Apps, File transfer, Settings
   if (!recentBooks.empty()) {
     count += recentBooks.size();
   }
@@ -113,8 +113,8 @@ void HomeActivity::loadRecentCovers(int coverHeight) {
 void HomeActivity::onEnter() {
   Activity::onEnter();
 
-  // Check if OPDS browser URL is configured
-  hasOpdsUrl = strlen(SETTINGS.opdsServerUrl) > 0;
+  // Check if OPDS browser URL is configured and not hidden
+  hasOpdsUrl = strlen(SETTINGS.opdsServerUrl) > 0 && !SETTINGS.hideOpdsBrowser;
 
   selectorIndex = 0;
 
@@ -189,13 +189,14 @@ void HomeActivity::loop() {
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
     // Calculate dynamic indices based on which options are available
-    // Menu layout: My Library, Recents, [OPDS], Apps, File Transfer, Settings
+    // Menu layout: My Library, Recents, [OPDS], App Store, Apps, File Transfer, Settings
     int menuSelectedIndex = selectorIndex - static_cast<int>(recentBooks.size());
 
     int idx = 0;
     const int myLibraryIdx = idx++;
     const int recentsIdx = idx++;
     const int opdsLibraryIdx = hasOpdsUrl ? idx++ : -1;
+    const int appStoreIdx = idx++;
     const int appsIdx = idx++;
     const int fileTransferIdx = idx++;
     const int settingsIdx = idx;
@@ -208,6 +209,8 @@ void HomeActivity::loop() {
       onRecentsOpen();
     } else if (menuSelectedIndex == opdsLibraryIdx) {
       onOpdsBrowserOpen();
+    } else if (menuSelectedIndex == appStoreIdx) {
+      onAppStoreOpen();
     } else if (menuSelectedIndex == appsIdx) {
       onAppsMenuOpen();
     } else if (menuSelectedIndex == fileTransferIdx) {
@@ -233,7 +236,7 @@ void HomeActivity::render(Activity::RenderLock&&) {
                           std::bind(&HomeActivity::storeCoverBuffer, this));
 
   // Build menu items dynamically
-  // Base items: My Library, Recents, [OPDS], Apps, File Transfer, Settings
+  // Base items: My Library, Recents, [OPDS], App Store, Apps, File Transfer, Settings
   std::vector<std::string> menuItems;
   menuItems.push_back(tr(STR_BROWSE_FILES));
   menuItems.push_back(tr(STR_MENU_RECENT_BOOKS));
@@ -242,6 +245,7 @@ void HomeActivity::render(Activity::RenderLock&&) {
     menuItems.push_back(tr(STR_OPDS_BROWSER));
   }
 
+  menuItems.push_back(tr(STR_APP_STORE));
   menuItems.push_back(tr(STR_APPS));
   menuItems.push_back(tr(STR_FILE_TRANSFER));
   menuItems.push_back(tr(STR_SETTINGS_TITLE));

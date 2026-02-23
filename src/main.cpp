@@ -268,7 +268,8 @@ void onGoToAppsMenu() {
 void onGoHome() {
   exitActivity();
   enterNewActivity(new HomeActivity(renderer, mappedInputManager, onGoToReader, onGoToMyLibrary, onGoToRecentBooks,
-                                    onGoToSettings, onGoToFileTransfer, onGoToBrowser, onGoToAppsMenu));
+                                    onGoToSettings, onGoToFileTransfer, onGoToBrowser, onGoToAppsMenu,
+                                    onGoToAppStore));
 }
 
 void setupDisplayAndFonts() {
