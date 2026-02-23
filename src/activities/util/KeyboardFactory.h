@@ -28,6 +28,6 @@ inline Activity* createKeyboard(GfxRenderer& renderer, MappedInputManager& mappe
     return new ScrollKeyboardActivity(renderer, mappedInput, std::move(title), std::move(initialText), startY, maxLength,
                                       isPassword, std::move(onComplete), std::move(onCancel));
   }
-  return new KeyboardEntryActivity(renderer, mappedInput, std::move(title), std::move(initialText), startY, maxLength,
+  return new KeyboardEntryActivity(renderer, mappedInput, std::move(title), std::move(initialText), maxLength,
                                    isPassword, std::move(onComplete), std::move(onCancel));
 }

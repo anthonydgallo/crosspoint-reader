@@ -11,7 +11,6 @@
 #include <cstring>
 #include <vector>
 
-#include "Battery.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "MappedInputManager.h"
@@ -71,7 +70,7 @@ void HomeActivity::loadRecentCovers(int coverHeight) {
           // Try to generate thumbnail image for Continue Reading card
           if (!showingLoading) {
             showingLoading = true;
-            popupRect = GUI.drawPopup(renderer, tr(STR_LOADING));
+            popupRect = GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
           }
           GUI.fillPopupProgress(renderer, popupRect, 10 + progress * (90 / recentBooks.size()));
           bool success = epub.generateThumbBmp(coverHeight);
@@ -89,7 +88,7 @@ void HomeActivity::loadRecentCovers(int coverHeight) {
             // Try to generate thumbnail image for Continue Reading card
             if (!showingLoading) {
               showingLoading = true;
-              popupRect = GUI.drawPopup(renderer, tr(STR_LOADING));
+              popupRect = GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
             }
             GUI.fillPopupProgress(renderer, popupRect, 10 + progress * (90 / recentBooks.size()));
             bool success = xtc.generateThumbBmp(coverHeight);
@@ -236,19 +235,23 @@ void HomeActivity::render(Activity::RenderLock&&) {
                           std::bind(&HomeActivity::storeCoverBuffer, this));
 
   // Build menu items dynamically
-  // Base items: My Library, Recents, [OPDS], App Store, Apps, File Transfer, Settings
-  std::vector<std::string> menuItems;
-  menuItems.push_back(tr(STR_BROWSE_FILES));
-  menuItems.push_back(tr(STR_MENU_RECENT_BOOKS));
+  // Menu order: My Library, Recents, [OPDS], App Store, Apps, File Transfer, Settings
+  std::vector<const char*> menuItems = {tr(STR_BROWSE_FILES), tr(STR_MENU_RECENT_BOOKS)};
+  std::vector<UIIcon> menuIcons = {Folder, Recent};
 
   if (hasOpdsUrl) {
     menuItems.push_back(tr(STR_OPDS_BROWSER));
+    menuIcons.push_back(Library);
   }
 
   menuItems.push_back(tr(STR_APP_STORE));
+  menuIcons.push_back(Library);
   menuItems.push_back(tr(STR_APPS));
+  menuIcons.push_back(Folder);
   menuItems.push_back(tr(STR_FILE_TRANSFER));
+  menuIcons.push_back(Transfer);
   menuItems.push_back(tr(STR_SETTINGS_TITLE));
+  menuIcons.push_back(Settings);
 
   GUI.drawButtonMenu(
       renderer,
@@ -256,7 +259,8 @@ void HomeActivity::render(Activity::RenderLock&&) {
            pageHeight - (metrics.headerHeight + metrics.homeTopPadding + metrics.verticalSpacing * 2 +
                          metrics.buttonHintsHeight)},
       static_cast<int>(menuItems.size()), selectorIndex - recentBooks.size(),
-      [&menuItems](int index) { return menuItems[index]; }, nullptr);
+      [&menuItems](int index) { return std::string(menuItems[index]); },
+      [&menuIcons](int index) { return menuIcons[index]; });
 
   const auto labels = mappedInput.mapLabels("", tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
