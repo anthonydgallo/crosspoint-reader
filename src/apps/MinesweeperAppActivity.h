@@ -28,6 +28,7 @@ class MinesweeperAppActivity final : public Activity {
   bool victory = false;
   int revealedSafeCount = 0;
   int flaggedCount = 0;
+  bool confirmingExit = false;
 
   const AppManifest manifest;
   const std::function<void()> onGoHome;
@@ -41,6 +42,11 @@ class MinesweeperAppActivity final : public Activity {
   void revealFloodFill(int startRow, int startCol);
   void toggleFlag(int row, int col);
   void checkWin();
+
+  // State persistence
+  bool saveState() const;
+  bool loadState();
+  void clearSavedState();
 
  public:
   explicit MinesweeperAppActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
