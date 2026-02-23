@@ -1,0 +1,9 @@
+{
+  "name": "Flashcards",
+  "type": "flashcard",
+  "version": "1.0",
+  "entries": [
+    {"title": "Spanish Basics", "file": "spanish-basics.tsv"},
+    {"title": "World Capitals", "file": "world-capitals.tsv"}
+  ]
+}

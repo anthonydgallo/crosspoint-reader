@@ -100,7 +100,7 @@ bool AppLoader::parseManifest(const std::string& appPath, AppManifest& out) {
   }
 
   // Parse entries for app types that use external text files
-  if (out.type == "textviewer" || out.type == "randomquote") {
+  if (out.type == "textviewer" || out.type == "randomquote" || out.type == "flashcard") {
     JsonArray entries = doc["entries"];
     if (entries) {
       for (JsonObject entry : entries) {
