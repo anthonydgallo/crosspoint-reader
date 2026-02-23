@@ -29,6 +29,7 @@
 #include "activities/art/ArtGalleryActivity.h"
 #include "activities/rosary/RosaryActivity.h"
 #include "activities/appstore/AppStoreActivity.h"
+#include "activities/home/AppsMenuActivity.h"
 #include "activities/settings/SettingsActivity.h"
 #include "activities/util/FullScreenMessageActivity.h"
 #include "apps/AppManifest.h"
@@ -259,10 +260,15 @@ void onGoToAppStore() {
   enterNewActivity(new AppStoreActivity(renderer, mappedInputManager, onGoHome));
 }
 
+void onGoToAppsMenu() {
+  exitActivity();
+  enterNewActivity(new AppsMenuActivity(renderer, mappedInputManager, onGoHome, onOpenApp, onGoToAppStore));
+}
+
 void onGoHome() {
   exitActivity();
   enterNewActivity(new HomeActivity(renderer, mappedInputManager, onGoToReader, onGoToMyLibrary, onGoToRecentBooks,
-                                    onGoToSettings, onGoToFileTransfer, onGoToBrowser, onOpenApp, onGoToAppStore));
+                                    onGoToSettings, onGoToFileTransfer, onGoToBrowser, onGoToAppsMenu));
 }
 
 void setupDisplayAndFonts() {

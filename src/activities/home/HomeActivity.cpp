@@ -16,21 +16,19 @@
 #include "CrossPointState.h"
 #include "MappedInputManager.h"
 #include "RecentBooksStore.h"
-#include "apps/AppLoader.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "util/StringUtils.h"
 
 int HomeActivity::getMenuItemCount() const {
-  // My Library, Recents, [OPDS], [apps...], App Store, File transfer, Settings
-  int count = 5;  // My Library, Recents, App Store, File transfer, Settings
+  // My Library, Recents, [OPDS], Apps, File transfer, Settings
+  int count = 5;  // My Library, Recents, Apps, File transfer, Settings
   if (!recentBooks.empty()) {
     count += recentBooks.size();
   }
   if (hasOpdsUrl) {
     count++;
   }
-  count += static_cast<int>(loadedApps.size());
   return count;
 }
 
@@ -120,9 +118,6 @@ void HomeActivity::onEnter() {
 
   selectorIndex = 0;
 
-  // Discover apps from SD card
-  loadedApps = AppLoader::scanApps();
-
   auto metrics = UITheme::getInstance().getMetrics();
   loadRecentBooks(metrics.homeRecentBooksCount);
 
@@ -194,17 +189,14 @@ void HomeActivity::loop() {
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
     // Calculate dynamic indices based on which options are available
-    // Menu layout: My Library, Recents, [OPDS], [App 0..N], App Store, File Transfer, Settings
+    // Menu layout: My Library, Recents, [OPDS], Apps, File Transfer, Settings
     int menuSelectedIndex = selectorIndex - static_cast<int>(recentBooks.size());
 
     int idx = 0;
     const int myLibraryIdx = idx++;
     const int recentsIdx = idx++;
     const int opdsLibraryIdx = hasOpdsUrl ? idx++ : -1;
-    // Apps occupy indices idx..idx+loadedApps.size()-1
-    const int appsStartIdx = idx;
-    idx += static_cast<int>(loadedApps.size());
-    const int appStoreIdx = idx++;
+    const int appsIdx = idx++;
     const int fileTransferIdx = idx++;
     const int settingsIdx = idx;
 
@@ -216,12 +208,8 @@ void HomeActivity::loop() {
       onRecentsOpen();
     } else if (menuSelectedIndex == opdsLibraryIdx) {
       onOpdsBrowserOpen();
-    } else if (menuSelectedIndex >= appsStartIdx &&
-               menuSelectedIndex < appsStartIdx + static_cast<int>(loadedApps.size())) {
-      int appIndex = menuSelectedIndex - appsStartIdx;
-      onAppOpen(loadedApps[appIndex]);
-    } else if (menuSelectedIndex == appStoreIdx) {
-      onAppStoreOpen();
+    } else if (menuSelectedIndex == appsIdx) {
+      onAppsMenuOpen();
     } else if (menuSelectedIndex == fileTransferIdx) {
       onFileTransferOpen();
     } else if (menuSelectedIndex == settingsIdx) {
@@ -245,7 +233,7 @@ void HomeActivity::render(Activity::RenderLock&&) {
                           std::bind(&HomeActivity::storeCoverBuffer, this));
 
   // Build menu items dynamically
-  // Base items: My Library, Recents, [OPDS], [apps...], App Store, File Transfer, Settings
+  // Base items: My Library, Recents, [OPDS], Apps, File Transfer, Settings
   std::vector<std::string> menuItems;
   menuItems.push_back(tr(STR_BROWSE_FILES));
   menuItems.push_back(tr(STR_MENU_RECENT_BOOKS));
@@ -254,12 +242,7 @@ void HomeActivity::render(Activity::RenderLock&&) {
     menuItems.push_back(tr(STR_OPDS_BROWSER));
   }
 
-  // Insert discovered apps
-  for (const auto& app : loadedApps) {
-    menuItems.push_back(app.name);
-  }
-
-  menuItems.push_back(tr(STR_APP_STORE));
+  menuItems.push_back(tr(STR_APPS));
   menuItems.push_back(tr(STR_FILE_TRANSFER));
   menuItems.push_back(tr(STR_SETTINGS_TITLE));
 

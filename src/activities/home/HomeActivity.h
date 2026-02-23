@@ -4,7 +4,6 @@
 
 #include "../Activity.h"
 #include "./MyLibraryActivity.h"
-#include "apps/AppManifest.h"
 #include "util/ButtonNavigator.h"
 
 struct RecentBook;
@@ -21,15 +20,13 @@ class HomeActivity final : public Activity {
   bool coverBufferStored = false;  // Track if cover buffer is stored
   uint8_t* coverBuffer = nullptr;  // HomeActivity's own buffer for cover image
   std::vector<RecentBook> recentBooks;
-  std::vector<AppManifest> loadedApps;  // Apps discovered from SD card
   const std::function<void(const std::string& path)> onSelectBook;
   const std::function<void()> onMyLibraryOpen;
   const std::function<void()> onRecentsOpen;
   const std::function<void()> onSettingsOpen;
   const std::function<void()> onFileTransferOpen;
   const std::function<void()> onOpdsBrowserOpen;
-  const std::function<void(const AppManifest& app)> onAppOpen;
-  const std::function<void()> onAppStoreOpen;
+  const std::function<void()> onAppsMenuOpen;
 
   int getMenuItemCount() const;
   bool storeCoverBuffer();    // Store frame buffer for cover image
@@ -44,8 +41,7 @@ class HomeActivity final : public Activity {
                         const std::function<void()>& onMyLibraryOpen, const std::function<void()>& onRecentsOpen,
                         const std::function<void()>& onSettingsOpen, const std::function<void()>& onFileTransferOpen,
                         const std::function<void()>& onOpdsBrowserOpen,
-                        const std::function<void(const AppManifest& app)>& onAppOpen,
-                        const std::function<void()>& onAppStoreOpen)
+                        const std::function<void()>& onAppsMenuOpen)
       : Activity("Home", renderer, mappedInput),
         onSelectBook(onSelectBook),
         onMyLibraryOpen(onMyLibraryOpen),
@@ -53,8 +49,7 @@ class HomeActivity final : public Activity {
         onSettingsOpen(onSettingsOpen),
         onFileTransferOpen(onFileTransferOpen),
         onOpdsBrowserOpen(onOpdsBrowserOpen),
-        onAppOpen(onAppOpen),
-        onAppStoreOpen(onAppStoreOpen) {}
+        onAppsMenuOpen(onAppsMenuOpen) {}
   void onEnter() override;
   void onExit() override;
   void loop() override;
