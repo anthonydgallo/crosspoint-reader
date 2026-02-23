@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <string>
 
 #include "AppManifest.h"
 #include "activities/Activity.h"
@@ -19,6 +20,12 @@ class MinesweeperAppActivity final : public Activity {
     uint8_t adjacent = 0;
   };
 
+  struct Stats {
+    uint32_t gamesWon = 0;
+    uint32_t gamesLost = 0;
+    uint32_t bestTimeSecs = 0;  // 0 = no record yet
+  };
+
   Cell board[kRows][kCols];
 
   int cursorRow = 0;
@@ -29,6 +36,20 @@ class MinesweeperAppActivity final : public Activity {
   int revealedSafeCount = 0;
   int flaggedCount = 0;
   bool confirmingExit = false;
+
+  // Timer
+  unsigned long gameStartMs = 0;
+  unsigned long frozenElapsedMs = 0;
+
+  // Which mine was clicked (for highlighting)
+  int triggerRow = -1;
+  int triggerCol = -1;
+
+  // Whether the winning time was a new best
+  bool newBest = false;
+
+  // Persistent stats
+  Stats stats;
 
   const AppManifest manifest;
   const std::function<void()> onGoHome;
@@ -43,10 +64,18 @@ class MinesweeperAppActivity final : public Activity {
   void toggleFlag(int row, int col);
   void checkWin();
 
+  // Timer helpers
+  unsigned long getElapsedSecs() const;
+  static std::string formatTime(unsigned long secs);
+
   // State persistence
   bool saveState() const;
   bool loadState();
   void clearSavedState();
+
+  // Stats persistence
+  void saveStats() const;
+  void loadStats();
 
  public:
   explicit MinesweeperAppActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
