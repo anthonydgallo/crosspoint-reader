@@ -8,7 +8,7 @@
 #include "esp_wifi.h"
 
 namespace {
-constexpr char latestReleaseUrl[] = "https://api.github.com/repos/crosspoint-reader/crosspoint-reader/releases/latest";
+constexpr char latestReleaseUrl[] = "https://api.github.com/repos/anthonydgallo/crosspoint-reader/releases/latest";
 
 /* This is buffer and size holder to keep upcoming data from latestReleaseUrl */
 char* local_buf;
@@ -136,6 +136,11 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
 
   latestVersion = doc["tag_name"].as<std::string>();
 
+  // Strip leading "v" or "V" prefix from tag name (e.g. "v1.2.0" -> "1.2.0")
+  if (!latestVersion.empty() && (latestVersion[0] == 'v' || latestVersion[0] == 'V')) {
+    latestVersion = latestVersion.substr(1);
+  }
+
   for (int i = 0; i < doc["assets"].size(); i++) {
     if (doc["assets"][i]["name"] == "firmware.bin") {
       otaUrl = doc["assets"][i]["browser_download_url"].as<std::string>();
@@ -189,9 +194,11 @@ bool OtaUpdater::isUpdateNewer() const {
   if (latestPatch != currentPatch) return latestPatch > currentPatch;
 
   // If we reach here, it means all segments are equal.
-  // One final check, if we're on an RC build (contains "-rc"), we should consider the latest version as newer even if
-  // the segments are equal, since RC builds are pre-release versions.
-  if (strstr(currentVersion, "-rc") != nullptr) {
+  // One final check: if we're on a pre-release build (contains "-rc", "-dev", or "-slim"),
+  // we should consider the latest version as newer even if the segments are equal,
+  // since pre-release builds should update to the matching release version.
+  if (strstr(currentVersion, "-rc") != nullptr || strstr(currentVersion, "-dev") != nullptr ||
+      strstr(currentVersion, "-slim") != nullptr) {
     return true;
   }
 
