@@ -24,14 +24,11 @@ void AppsMenuActivity::onExit() {
 void AppsMenuActivity::loop() {
   const int pageItems = UITheme::getInstance().getNumberOfItemsPerPage(renderer, true, false, true, false);
 
-  // Total items: installed apps + App Store entry
-  const int listSize = static_cast<int>(loadedApps.size()) + 1;
+  const int listSize = static_cast<int>(loadedApps.size());
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-    if (selectorIndex < static_cast<int>(loadedApps.size())) {
+    if (selectorIndex < listSize) {
       onAppOpen(loadedApps[selectorIndex]);
-    } else {
-      onAppStoreOpen();
     }
     return;
   }
@@ -74,25 +71,11 @@ void AppsMenuActivity::render(Activity::RenderLock&&) {
   const int contentTop = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
   const int contentHeight = pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing;
 
-  // Total items: installed apps + App Store
-  const int totalItems = static_cast<int>(loadedApps.size()) + 1;
+  const int totalItems = static_cast<int>(loadedApps.size());
 
-  if (loadedApps.empty()) {
-    // Only show App Store entry
-    GUI.drawList(
-        renderer, Rect{0, contentTop, pageWidth, contentHeight}, totalItems, selectorIndex,
-        [](int) { return std::string(tr(STR_APP_STORE)); }, nullptr, nullptr, nullptr);
-  } else {
-    GUI.drawList(
-        renderer, Rect{0, contentTop, pageWidth, contentHeight}, totalItems, selectorIndex,
-        [this](int index) {
-          if (index < static_cast<int>(loadedApps.size())) {
-            return loadedApps[index].name;
-          }
-          return std::string(tr(STR_APP_STORE));
-        },
-        nullptr, nullptr, nullptr);
-  }
+  GUI.drawList(
+      renderer, Rect{0, contentTop, pageWidth, contentHeight}, totalItems, selectorIndex,
+      [this](int index) { return loadedApps[index].name; }, nullptr, nullptr, nullptr);
 
   const auto labels = mappedInput.mapLabels(tr(STR_HOME), tr(STR_OPEN), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
