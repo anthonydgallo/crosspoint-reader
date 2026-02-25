@@ -270,7 +270,7 @@ void onGoToAppStore() {
 
 void onGoToAppsMenu() {
   exitActivity();
-  enterNewActivity(new AppsMenuActivity(renderer, mappedInputManager, onGoHome, onOpenApp, onGoToAppStore));
+  enterNewActivity(new AppsMenuActivity(renderer, mappedInputManager, onGoHome, onOpenApp));
 }
 
 void onGoHome() {

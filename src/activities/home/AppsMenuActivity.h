@@ -19,17 +19,14 @@ class AppsMenuActivity final : public Activity {
 
   const std::function<void()> onGoHome;
   const std::function<void(const AppManifest& app)> onAppOpen;
-  const std::function<void()> onAppStoreOpen;
 
  public:
   explicit AppsMenuActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                             const std::function<void()>& onGoHome,
-                            const std::function<void(const AppManifest& app)>& onAppOpen,
-                            const std::function<void()>& onAppStoreOpen)
+                            const std::function<void(const AppManifest& app)>& onAppOpen)
       : Activity("AppsMenu", renderer, mappedInput),
         onGoHome(onGoHome),
-        onAppOpen(onAppOpen),
-        onAppStoreOpen(onAppStoreOpen) {}
+        onAppOpen(onAppOpen) {}
   void onEnter() override;
   void onExit() override;
   void loop() override;
