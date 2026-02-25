@@ -665,9 +665,24 @@ void BaseTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std:
 void BaseTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount, int selectedIndex,
                                const std::function<std::string(int index)>& buttonLabel,
                                const std::function<UIIcon(int index)>& rowIcon) const {
-  for (int i = 0; i < buttonCount; ++i) {
-    const int tileY = BaseMetrics::values.verticalSpacing + rect.y +
-                      static_cast<int>(i) * (BaseMetrics::values.menuRowHeight + BaseMetrics::values.menuSpacing);
+  const int itemHeight = BaseMetrics::values.menuRowHeight + BaseMetrics::values.menuSpacing;
+  int pageItems = (rect.height - BaseMetrics::values.verticalSpacing) / itemHeight;
+  if (pageItems < 1) pageItems = 1;
+  if (pageItems > buttonCount) pageItems = buttonCount;
+
+  // Calculate scroll offset to keep selected item visible
+  int scrollOffset = 0;
+  if (selectedIndex >= pageItems) {
+    scrollOffset = selectedIndex - pageItems + 1;
+  }
+  if (scrollOffset > buttonCount - pageItems) {
+    scrollOffset = buttonCount - pageItems;
+  }
+  if (scrollOffset < 0) scrollOffset = 0;
+
+  for (int i = scrollOffset; i < buttonCount && i < scrollOffset + pageItems; ++i) {
+    const int visibleIndex = i - scrollOffset;
+    const int tileY = BaseMetrics::values.verticalSpacing + rect.y + visibleIndex * itemHeight;
 
     const bool selected = selectedIndex == i;
 

@@ -568,10 +568,26 @@ void LyraTheme::drawEmptyRecents(const GfxRenderer& renderer, const Rect rect) c
 void LyraTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount, int selectedIndex,
                                const std::function<std::string(int index)>& buttonLabel,
                                const std::function<UIIcon(int index)>& rowIcon) const {
-  for (int i = 0; i < buttonCount; ++i) {
-    int tileWidth = rect.width - LyraMetrics::values.contentSidePadding * 2;
+  const int itemHeight = LyraMetrics::values.menuRowHeight + LyraMetrics::values.menuSpacing;
+  int pageItems = rect.height / itemHeight;
+  if (pageItems < 1) pageItems = 1;
+  if (pageItems > buttonCount) pageItems = buttonCount;
+
+  // Calculate scroll offset to keep selected item visible
+  int scrollOffset = 0;
+  if (selectedIndex >= pageItems) {
+    scrollOffset = selectedIndex - pageItems + 1;
+  }
+  if (scrollOffset > buttonCount - pageItems) {
+    scrollOffset = buttonCount - pageItems;
+  }
+  if (scrollOffset < 0) scrollOffset = 0;
+
+  int tileWidth = rect.width - LyraMetrics::values.contentSidePadding * 2;
+  for (int i = scrollOffset; i < buttonCount && i < scrollOffset + pageItems; ++i) {
+    const int visibleIndex = i - scrollOffset;
     Rect tileRect = Rect{rect.x + LyraMetrics::values.contentSidePadding,
-                         rect.y + i * (LyraMetrics::values.menuRowHeight + LyraMetrics::values.menuSpacing), tileWidth,
+                         rect.y + visibleIndex * itemHeight, tileWidth,
                          LyraMetrics::values.menuRowHeight};
 
     const bool selected = selectedIndex == i;
