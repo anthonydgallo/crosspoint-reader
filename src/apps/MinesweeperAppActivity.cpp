@@ -429,11 +429,11 @@ void MinesweeperAppActivity::loadStats() {
 void MinesweeperAppActivity::loop() {
   // Exit confirmation state
   if (confirmingExit) {
-    if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
+    if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
       onGoHome();
       return;
     }
-    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+    if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
       confirmingExit = false;
       requestUpdate();
     }
