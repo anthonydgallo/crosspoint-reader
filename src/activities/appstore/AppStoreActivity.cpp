@@ -16,9 +16,10 @@
 
 namespace {
 constexpr const char* GITHUB_API_BASE =
-    "https://api.github.com/repos/crosspoint-reader/crosspoint-reader/contents/apps";
+    "https://api.github.com/repos/anthonydgallo/crosspoint-reader/contents/apps";
 constexpr const char* GITHUB_RAW_BASE =
-    "https://raw.githubusercontent.com/crosspoint-reader/crosspoint-reader/main/apps";
+    "https://raw.githubusercontent.com/anthonydgallo/crosspoint-reader/master/apps";
+constexpr const char* GITHUB_REF = "?ref=master";
 constexpr int PAGE_ITEMS = 15;
 }  // namespace
 
@@ -207,7 +208,8 @@ void AppStoreActivity::fetchAppList() {
   LOG_DBG("STORE", "Fetching app list from GitHub");
 
   std::string response;
-  if (!HttpDownloader::fetchUrl(GITHUB_API_BASE, response)) {
+  std::string listUrl = std::string(GITHUB_API_BASE) + GITHUB_REF;
+  if (!HttpDownloader::fetchUrl(listUrl, response)) {
     state = StoreState::ERROR;
     errorMessage = tr(STR_FETCH_FEED_FAILED);
     requestUpdate();
@@ -301,7 +303,7 @@ void AppStoreActivity::installApp(const RemoteApp& app) {
   LOG_DBG("STORE", "Installing app: %s", app.name.c_str());
 
   // Fetch the file list for this app folder
-  std::string apiUrl = std::string(GITHUB_API_BASE) + "/" + app.name;
+  std::string apiUrl = std::string(GITHUB_API_BASE) + "/" + app.name + GITHUB_REF;
   std::string response;
   if (!HttpDownloader::fetchUrl(apiUrl, response)) {
     state = StoreState::ERROR;
