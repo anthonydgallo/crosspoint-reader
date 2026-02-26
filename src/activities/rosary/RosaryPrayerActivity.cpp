@@ -363,7 +363,7 @@ void RosaryPrayerActivity::render() const {
   contentY += 8;
 
   // --- Bead visualization ---
-  const int beadAreaHeight = 40;
+  const int beadAreaHeight = 50;
   drawBeadVisualization(sidePadding, contentY, pageWidth - sidePadding * 2, beadAreaHeight);
   contentY += beadAreaHeight + 8;
 
