@@ -146,7 +146,7 @@ void RosaryMysteryListActivity::render() const {
         nullptr, nullptr);
   }
 
-  const auto labels = mappedInput.mapLabels("\x11 Back", "Select", "Up", "Down");
+  const auto labels = mappedInput.mapLabels("« Back", "Select", "Up", "Down");
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();

@@ -505,7 +505,7 @@ void MinesweeperAppActivity::render(Activity::RenderLock&&) {
     renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 - 30, "Exit game?", true, EpdFontFamily::BOLD);
     renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2, "Your progress will be saved.", true);
 
-    const auto labels = mappedInput.mapLabels("\x11 Cancel", "Exit", "", "");
+    const auto labels = mappedInput.mapLabels("« Cancel", "Exit", "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
     renderer.displayBuffer();
@@ -641,7 +641,7 @@ void MinesweeperAppActivity::render(Activity::RenderLock&&) {
 
   // --- Button hints (context-sensitive) ---
   const char* btn2Label = (gameOver || victory) ? "New Game" : "Open/Flag";
-  const auto labels = mappedInput.mapLabels("\x11 Back", btn2Label, "Left", "Right");
+  const auto labels = mappedInput.mapLabels("« Back", btn2Label, "Left", "Right");
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   GUI.drawSideButtonHints(renderer, "Up", "Down");
 

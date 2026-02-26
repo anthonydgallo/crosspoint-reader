@@ -611,7 +611,7 @@ void TextEditorAppActivity::renderFileBrowser() {
       },
       nullptr, nullptr, nullptr);
 
-  const auto labels = mappedInput.mapLabels("\x11 Back", tr(STR_OPEN), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
+  const auto labels = mappedInput.mapLabels("« Back", tr(STR_OPEN), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();

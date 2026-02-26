@@ -112,7 +112,7 @@ void ArtGalleryActivity::renderMenu() {
       renderer, Rect{0, contentY, pageWidth, contentHeight}, ART_COUNT, currentArt,
       [this](int index) -> std::string { return getArtTitle(index); }, nullptr, nullptr, nullptr);
 
-  const auto labels = mappedInput.mapLabels("\x11 Back", "View", "Up", "Down");
+  const auto labels = mappedInput.mapLabels("« Back", "View", "Up", "Down");
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();

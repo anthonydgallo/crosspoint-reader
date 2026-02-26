@@ -698,7 +698,7 @@ void FlashcardAppActivity::render(Activity::RenderLock&&) {
         }
       }
 
-      const auto labels = mappedInput.mapLabels("\x11 Back", "Open", "Up", "Down");
+      const auto labels = mappedInput.mapLabels("« Back", "Open", "Up", "Down");
       GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
       break;
     }
@@ -745,7 +745,7 @@ void FlashcardAppActivity::render(Activity::RenderLock&&) {
 
       renderer.drawCenteredText(UI_10_FONT_ID, contentY, "Press Right/Down to browse all cards", true);
 
-      const auto labels = mappedInput.mapLabels("\x11 Back", "Study", "", "Browse");
+      const auto labels = mappedInput.mapLabels("« Back", "Study", "", "Browse");
       GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
       break;
     }
@@ -775,7 +775,7 @@ void FlashcardAppActivity::render(Activity::RenderLock&&) {
         textY += lineHeight;
       }
 
-      const auto labels = mappedInput.mapLabels("\x11 Back", "Reveal", "", "");
+      const auto labels = mappedInput.mapLabels("« Back", "Reveal", "", "");
       GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
       break;
     }
@@ -845,7 +845,7 @@ void FlashcardAppActivity::render(Activity::RenderLock&&) {
         }
       }
 
-      const auto labels = mappedInput.mapLabels("\x11 Flip", "Rate", "Prev", "Next");
+      const auto labels = mappedInput.mapLabels("« Flip", "Rate", "Prev", "Next");
       GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
       break;
     }
@@ -870,7 +870,7 @@ void FlashcardAppActivity::render(Activity::RenderLock&&) {
         renderer.drawCenteredText(UI_10_FONT_ID, centerY, "All caught up! Come back later.", true);
       }
 
-      const auto labels = mappedInput.mapLabels("\x11 Back", "OK", "", "");
+      const auto labels = mappedInput.mapLabels("« Back", "OK", "", "");
       GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
       break;
     }
@@ -935,7 +935,7 @@ void FlashcardAppActivity::render(Activity::RenderLock&&) {
                                   "Press Confirm to reveal answer", true);
       }
 
-      const auto labels = mappedInput.mapLabels("\x11 Back", browseShowBack ? "Hide" : "Reveal", "Prev", "Next");
+      const auto labels = mappedInput.mapLabels("« Back", browseShowBack ? "Hide" : "Reveal", "Prev", "Next");
       GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
       break;
     }
