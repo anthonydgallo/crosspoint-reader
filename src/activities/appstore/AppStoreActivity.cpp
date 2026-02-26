@@ -9,7 +9,6 @@
 
 #include "MappedInputManager.h"
 #include "activities/network/WifiSelectionActivity.h"
-#include "apps/AppLoader.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "network/HttpDownloader.h"
@@ -21,6 +20,9 @@ constexpr const char* GITHUB_RAW_BASE =
     "https://raw.githubusercontent.com/anthonydgallo/crosspoint-reader/master/apps";
 constexpr const char* GITHUB_REF = "?ref=master";
 constexpr int PAGE_ITEMS = 15;
+
+// Minimum free heap required for TLS connections (~40-50KB for TLS + working memory)
+constexpr size_t MIN_HEAP_FOR_TLS = 60000;
 }  // namespace
 
 void AppStoreActivity::onEnter() {
@@ -205,66 +207,76 @@ void AppStoreActivity::render(Activity::RenderLock&&) {
 }
 
 void AppStoreActivity::fetchAppList() {
-  LOG_DBG("STORE", "Fetching app list from GitHub");
+  LOG_DBG("STORE", "Fetching app list from GitHub (free heap: %d)", ESP.getFreeHeap());
 
-  std::string response;
-  std::string listUrl = std::string(GITHUB_API_BASE) + GITHUB_REF;
-  if (!HttpDownloader::fetchUrl(listUrl, response)) {
-    state = StoreState::ERROR;
-    errorMessage = tr(STR_FETCH_FEED_FAILED);
-    requestUpdate();
-    return;
-  }
+  // Parse directory listing in its own scope so response + JsonDocument are freed
+  // before we start making additional HTTPS requests for manifests
+  {
+    std::string response;
+    std::string listUrl = std::string(GITHUB_API_BASE) + GITHUB_REF;
+    if (!HttpDownloader::fetchUrl(listUrl, response)) {
+      state = StoreState::ERROR;
+      errorMessage = tr(STR_FETCH_FEED_FAILED);
+      requestUpdate();
+      return;
+    }
 
-  // Parse JSON array of directory entries
-  JsonDocument doc;
-  DeserializationError error = deserializeJson(doc, response);
-  if (error) {
-    LOG_ERR("STORE", "JSON parse error: %s", error.c_str());
-    state = StoreState::ERROR;
-    errorMessage = tr(STR_FETCH_FEED_FAILED);
-    requestUpdate();
-    return;
-  }
+    // Parse JSON array of directory entries
+    JsonDocument doc;
+    DeserializationError error = deserializeJson(doc, response);
+    if (error) {
+      LOG_ERR("STORE", "JSON parse error: %s", error.c_str());
+      state = StoreState::ERROR;
+      errorMessage = tr(STR_FETCH_FEED_FAILED);
+      requestUpdate();
+      return;
+    }
 
-  if (!doc.is<JsonArray>()) {
-    LOG_ERR("STORE", "Expected JSON array from GitHub API");
-    state = StoreState::ERROR;
-    errorMessage = tr(STR_FETCH_FEED_FAILED);
-    requestUpdate();
-    return;
-  }
+    if (!doc.is<JsonArray>()) {
+      LOG_ERR("STORE", "Expected JSON array from GitHub API");
+      state = StoreState::ERROR;
+      errorMessage = tr(STR_FETCH_FEED_FAILED);
+      requestUpdate();
+      return;
+    }
 
-  // Get list of currently installed apps for comparison
-  auto installedApps = AppLoader::scanApps();
+    apps.clear();
+    JsonArray entries = doc.as<JsonArray>();
+    for (JsonObject entry : entries) {
+      const char* type = entry["type"];
+      const char* name = entry["name"];
 
-  apps.clear();
-  JsonArray entries = doc.as<JsonArray>();
-  for (JsonObject entry : entries) {
-    const char* type = entry["type"];
-    const char* name = entry["name"];
+      if (!type || !name) continue;
 
-    if (!type || !name) continue;
+      // Only include directories (app folders)
+      if (strcmp(type, "dir") != 0) continue;
 
-    // Only include directories (app folders)
-    if (strcmp(type, "dir") != 0) continue;
+      // Skip hidden directories
+      if (name[0] == '.') continue;
 
-    // Skip hidden directories
-    if (name[0] == '.') continue;
+      RemoteApp app;
+      app.name = name;
+      app.displayName = name;  // Will be updated if we can fetch the manifest
 
-    RemoteApp app;
-    app.name = name;
-    app.displayName = name;  // Will be updated if we can fetch the manifest
+      // Check if already installed
+      std::string appPath = std::string("/apps/") + name;
+      app.installed = Storage.exists(appPath.c_str());
 
-    // Check if already installed
-    std::string appPath = std::string("/apps/") + name;
-    app.installed = Storage.exists(appPath.c_str());
+      apps.push_back(std::move(app));
+    }
+  }  // response and doc are freed here before manifest fetches
 
-    apps.push_back(std::move(app));
-  }
+  LOG_DBG("STORE", "Found %d app(s), fetching manifests (free heap: %d)", static_cast<int>(apps.size()),
+          ESP.getFreeHeap());
 
-  // Now try to fetch display names from app.json manifests
+  // Fetch display names from app.json manifests, but only if we have enough heap
+  // for TLS connections. Each HTTPS request temporarily needs ~40-50KB for TLS.
   for (auto& app : apps) {
+    if (ESP.getFreeHeap() < MIN_HEAP_FOR_TLS) {
+      LOG_INF("STORE", "Low memory (%d bytes free), skipping remaining manifest fetches", ESP.getFreeHeap());
+      break;
+    }
+
     std::string manifestUrl = std::string(GITHUB_RAW_BASE) + "/" + app.name + "/app.json";
     std::string manifestContent;
     if (HttpDownloader::fetchUrl(manifestUrl, manifestContent)) {
@@ -276,9 +288,11 @@ void AppStoreActivity::fetchAppList() {
         }
       }
     }
+
+    yield();  // Let FreeRTOS process other tasks between network requests
   }
 
-  LOG_DBG("STORE", "Found %d app(s) on GitHub", static_cast<int>(apps.size()));
+  LOG_DBG("STORE", "App list ready: %d app(s) (free heap: %d)", static_cast<int>(apps.size()), ESP.getFreeHeap());
 
   if (apps.empty()) {
     state = StoreState::ERROR;
@@ -300,29 +314,10 @@ void AppStoreActivity::installApp(const RemoteApp& app) {
   lastRenderedPercent = -1;
   requestUpdate();
 
-  LOG_DBG("STORE", "Installing app: %s", app.name.c_str());
+  LOG_DBG("STORE", "Installing app: %s (free heap: %d)", app.name.c_str(), ESP.getFreeHeap());
 
-  // Fetch the file list for this app folder
-  std::string apiUrl = std::string(GITHUB_API_BASE) + "/" + app.name + GITHUB_REF;
-  std::string response;
-  if (!HttpDownloader::fetchUrl(apiUrl, response)) {
-    state = StoreState::ERROR;
-    errorMessage = tr(STR_INSTALL_FAILED);
-    requestUpdate();
-    return;
-  }
-
-  JsonDocument doc;
-  DeserializationError error = deserializeJson(doc, response);
-  if (error || !doc.is<JsonArray>()) {
-    LOG_ERR("STORE", "Failed to parse app file list");
-    state = StoreState::ERROR;
-    errorMessage = tr(STR_INSTALL_FAILED);
-    requestUpdate();
-    return;
-  }
-
-  // Calculate total download size and collect file info
+  // Collect file info in its own scope so the API response and JSON document
+  // are freed before we start the download loop
   struct FileInfo {
     std::string name;
     std::string downloadUrl;
@@ -331,22 +326,45 @@ void AppStoreActivity::installApp(const RemoteApp& app) {
   std::vector<FileInfo> files;
   size_t totalSize = 0;
 
-  JsonArray entries = doc.as<JsonArray>();
-  for (JsonObject entry : entries) {
-    const char* type = entry["type"];
-    const char* name = entry["name"];
-    const char* downloadUrl = entry["download_url"];
+  {
+    // Fetch the file list for this app folder
+    std::string apiUrl = std::string(GITHUB_API_BASE) + "/" + app.name + GITHUB_REF;
+    std::string response;
+    if (!HttpDownloader::fetchUrl(apiUrl, response)) {
+      state = StoreState::ERROR;
+      errorMessage = tr(STR_INSTALL_FAILED);
+      requestUpdate();
+      return;
+    }
 
-    if (!type || !name) continue;
+    JsonDocument doc;
+    DeserializationError error = deserializeJson(doc, response);
+    if (error || !doc.is<JsonArray>()) {
+      LOG_ERR("STORE", "Failed to parse app file list");
+      state = StoreState::ERROR;
+      errorMessage = tr(STR_INSTALL_FAILED);
+      requestUpdate();
+      return;
+    }
 
-    // Only download files (skip subdirectories for now)
-    if (strcmp(type, "file") != 0) continue;
-    if (!downloadUrl) continue;
+    // Calculate total download size and collect file info
+    JsonArray entries = doc.as<JsonArray>();
+    for (JsonObject entry : entries) {
+      const char* type = entry["type"];
+      const char* name = entry["name"];
+      const char* downloadUrl = entry["download_url"];
 
-    size_t size = entry["size"] | 0;
-    files.push_back({name, downloadUrl, size});
-    totalSize += size;
-  }
+      if (!type || !name) continue;
+
+      // Only download files (skip subdirectories for now)
+      if (strcmp(type, "file") != 0) continue;
+      if (!downloadUrl) continue;
+
+      size_t size = entry["size"] | 0;
+      files.push_back({name, downloadUrl, size});
+      totalSize += size;
+    }
+  }  // response and doc are freed here before downloads begin
 
   if (files.empty()) {
     LOG_ERR("STORE", "No files found in app folder");
@@ -360,6 +378,9 @@ void AppStoreActivity::installApp(const RemoteApp& app) {
   downloadProgress = 0;
   requestUpdate();
 
+  LOG_DBG("STORE", "Downloading %d file(s), %zu bytes total (free heap: %d)", static_cast<int>(files.size()),
+          totalSize, ESP.getFreeHeap());
+
   // Create the app directory on SD card
   std::string appDir = std::string("/apps/") + app.name;
   Storage.ensureDirectoryExists(appDir.c_str());
@@ -368,7 +389,15 @@ void AppStoreActivity::installApp(const RemoteApp& app) {
   size_t downloadedSoFar = 0;
   for (const auto& file : files) {
     std::string destPath = appDir + "/" + file.name;
-    LOG_DBG("STORE", "Downloading: %s (%zu bytes)", file.name.c_str(), file.size);
+    LOG_DBG("STORE", "Downloading: %s (%zu bytes, free heap: %d)", file.name.c_str(), file.size, ESP.getFreeHeap());
+
+    if (ESP.getFreeHeap() < MIN_HEAP_FOR_TLS) {
+      LOG_ERR("STORE", "Insufficient memory to continue download (%d bytes free)", ESP.getFreeHeap());
+      state = StoreState::ERROR;
+      errorMessage = tr(STR_INSTALL_FAILED);
+      requestUpdate();
+      return;
+    }
 
     if (!downloadFile(file.downloadUrl, destPath, file.size)) {
       // Clean up on failure
@@ -393,9 +422,11 @@ void AppStoreActivity::installApp(const RemoteApp& app) {
         delay(50);  // Brief delay to let render task process the update
       }
     }
+
+    yield();  // Let FreeRTOS process other tasks between file downloads
   }
 
-  LOG_DBG("STORE", "App installed successfully: %s", app.name.c_str());
+  LOG_DBG("STORE", "App installed successfully: %s (free heap: %d)", app.name.c_str(), ESP.getFreeHeap());
 
   state = StoreState::DOWNLOAD_COMPLETE;
   requestUpdate();
