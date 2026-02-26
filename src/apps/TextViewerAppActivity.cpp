@@ -203,7 +203,7 @@ void TextViewerAppActivity::renderList() {
       renderer, Rect{0, contentY, pageWidth, contentHeight}, static_cast<int>(entries.size()), selectorIndex,
       [&entries](int index) -> std::string { return entries[index].title; }, nullptr, nullptr, nullptr);
 
-  const auto labels = mappedInput.mapLabels("\x11 Back", "View", "Up", "Down");
+  const auto labels = mappedInput.mapLabels("« Back", "View", "Up", "Down");
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
@@ -243,7 +243,7 @@ void TextViewerAppActivity::renderText() {
   int currentPage = (scrollLine / lpp) + 1;
 
   std::string pageStr = std::to_string(currentPage) + "/" + std::to_string(totalPages);
-  const auto labels = mappedInput.mapLabels("\x11 Back", pageStr.c_str(), "Pg Up", "Pg Down");
+  const auto labels = mappedInput.mapLabels("« Back", pageStr.c_str(), "Pg Up", "Pg Down");
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();

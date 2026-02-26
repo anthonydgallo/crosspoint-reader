@@ -264,11 +264,11 @@ void CalculatorAppActivity::render(Activity::RenderLock&&) {
     switch (mode) {
       case Mode::EnterFirst:
       case Mode::EnterSecond:
-        return mappedInput.mapLabels("\x11 Back", "Next", "Digit", "Digit");
+        return mappedInput.mapLabels("« Back", "Next", "Digit", "Digit");
       case Mode::SelectOperator:
-        return mappedInput.mapLabels("\x11 Back", "Use", "Prev", "Next");
+        return mappedInput.mapLabels("« Back", "Use", "Prev", "Next");
       case Mode::ShowResult:
-        return mappedInput.mapLabels("\x11 Back", "Chain", "Reset", "Reset");
+        return mappedInput.mapLabels("« Back", "Chain", "Reset", "Reset");
     }
     return mappedInput.mapLabels("", "", "", "");
   }();

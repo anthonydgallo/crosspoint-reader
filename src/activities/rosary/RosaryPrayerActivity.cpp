@@ -396,7 +396,7 @@ void RosaryPrayerActivity::render() const {
   }
 
   // --- Button hints ---
-  const char* backLabel = "\x11 Back";
+  const char* backLabel = "« Back";
   std::string progressStr = getProgressText();
   const auto labels = mappedInput.mapLabels(backLabel, progressStr.c_str(), "Prev", "Next");
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);

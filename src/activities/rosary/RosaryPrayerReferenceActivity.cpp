@@ -168,7 +168,7 @@ void RosaryPrayerReferenceActivity::render() const {
     int textAreaHeight = pageHeight - contentY - metrics.buttonHintsHeight - metrics.verticalSpacing;
     drawWrappedText(UI_10_FONT_ID, sidePadding, contentY, pageWidth - sidePadding * 2, textAreaHeight, prayerText);
 
-    const auto labels = mappedInput.mapLabels("\x11 Back", "", "", "");
+    const auto labels = mappedInput.mapLabels("« Back", "", "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else {
     // Show prayer list
@@ -181,7 +181,7 @@ void RosaryPrayerReferenceActivity::render() const {
         renderer, Rect{0, contentY, pageWidth, contentHeight}, RosaryData::PRAYER_REFERENCE_COUNT, selectorIndex,
         [](int index) { return std::string(RosaryData::getPrayerReferenceName(index)); }, nullptr, nullptr, nullptr);
 
-    const auto labels = mappedInput.mapLabels("\x11 Back", "View", "Up", "Down");
+    const auto labels = mappedInput.mapLabels("« Back", "View", "Up", "Down");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   }
 
