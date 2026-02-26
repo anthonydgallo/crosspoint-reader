@@ -1,0 +1,22 @@
+{
+  "name": "Would You Rather",
+  "type": "randomquote",
+  "version": "1.0",
+  "entries": [
+    {"title": "Adventure", "file": "adventure-1.txt"},
+    {"title": "Superpower", "file": "superpower-1.txt"},
+    {"title": "Time Travel", "file": "time-travel-1.txt"},
+    {"title": "Survival", "file": "survival-1.txt"},
+    {"title": "Knowledge", "file": "knowledge-1.txt"},
+    {"title": "Social", "file": "social-1.txt"},
+    {"title": "Wealth", "file": "wealth-1.txt"},
+    {"title": "Food", "file": "food-1.txt"},
+    {"title": "Nature", "file": "nature-1.txt"},
+    {"title": "Technology", "file": "technology-1.txt"},
+    {"title": "Talent", "file": "talent-1.txt"},
+    {"title": "Exploration", "file": "exploration-1.txt"},
+    {"title": "Lifestyle", "file": "lifestyle-1.txt"},
+    {"title": "History", "file": "history-1.txt"},
+    {"title": "Weird", "file": "weird-1.txt"}
+  ]
+}

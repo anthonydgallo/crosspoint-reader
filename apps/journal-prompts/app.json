@@ -1,0 +1,22 @@
+{
+  "name": "Daily Journal Prompts",
+  "type": "randomquote",
+  "version": "1.0",
+  "entries": [
+    {"title": "Gratitude", "file": "gratitude-1.txt"},
+    {"title": "Reflection", "file": "reflection-1.txt"},
+    {"title": "Growth", "file": "growth-1.txt"},
+    {"title": "Creativity", "file": "creativity-1.txt"},
+    {"title": "Relationships", "file": "relationships-1.txt"},
+    {"title": "Values", "file": "values-1.txt"},
+    {"title": "Future Self", "file": "future-self-1.txt"},
+    {"title": "Challenge", "file": "challenge-1.txt"},
+    {"title": "Memory", "file": "memory-1.txt"},
+    {"title": "Intention", "file": "intention-1.txt"},
+    {"title": "Kindness", "file": "kindness-1.txt"},
+    {"title": "Letting Go", "file": "letting-go-1.txt"},
+    {"title": "Adventure", "file": "adventure-1.txt"},
+    {"title": "Curiosity", "file": "curiosity-1.txt"},
+    {"title": "Simplicity", "file": "simplicity-1.txt"}
+  ]
+}

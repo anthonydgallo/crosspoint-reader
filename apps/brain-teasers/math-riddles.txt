@@ -1,0 +1,62 @@
+MATH RIDDLES
+
+No calculator needed -- just logic.
+
+---
+
+1. If you have a basket with 6 apples and
+you take away 4, how many do you have?
+
+Answer: 4. You took 4 apples.
+
+---
+
+2. How can you add eight 8s to get the
+number 1,000?
+
+Answer: 888 + 88 + 8 + 8 + 8 = 1,000.
+
+---
+
+3. A bat and a ball cost $1.10 together.
+The bat costs $1.00 more than the ball.
+How much does the ball cost?
+
+Answer: $0.05. The bat costs $1.05.
+(Not $0.10 -- that's the common trap!)
+
+---
+
+4. If it takes 5 machines 5 minutes to
+make 5 widgets, how long would it take
+100 machines to make 100 widgets?
+
+Answer: 5 minutes. Each machine makes
+1 widget in 5 minutes.
+
+---
+
+5. Three friends split a $30 hotel bill,
+paying $10 each. The clerk realizes the
+bill should be $25 and gives $5 to the
+bellboy to return. The bellboy keeps $2
+and gives $1 back to each friend. Each
+friend paid $9 (total $27) plus the $2
+the bellboy kept = $29. Where's the
+missing dollar?
+
+Answer: There is no missing dollar. The
+$27 the friends paid includes the $2 the
+bellboy kept. $25 to the hotel + $2 to
+the bellboy = $27. Plus $3 returned =
+$30. The puzzle tricks you into adding
+the $2 twice.
+
+---
+
+6. I am a three-digit number. My tens
+digit is 5 more than my ones digit. My
+hundreds digit is 8 less than my tens
+digit. What number am I?
+
+Answer: 194.

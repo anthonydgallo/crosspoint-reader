@@ -1,0 +1,22 @@
+{
+  "name": "Fun Facts & Trivia",
+  "type": "randomquote",
+  "version": "1.0",
+  "entries": [
+    {"title": "Space", "file": "space-1.txt"},
+    {"title": "Ocean", "file": "ocean-1.txt"},
+    {"title": "Human Body", "file": "body-1.txt"},
+    {"title": "Animals", "file": "animals-1.txt"},
+    {"title": "History", "file": "history-1.txt"},
+    {"title": "Language", "file": "language-1.txt"},
+    {"title": "Food", "file": "food-1.txt"},
+    {"title": "Geography", "file": "geography-1.txt"},
+    {"title": "Science", "file": "science-1.txt"},
+    {"title": "Music", "file": "music-1.txt"},
+    {"title": "Nature", "file": "nature-1.txt"},
+    {"title": "Technology", "file": "technology-1.txt"},
+    {"title": "Mathematics", "file": "math-1.txt"},
+    {"title": "Architecture", "file": "architecture-1.txt"},
+    {"title": "Psychology", "file": "psychology-1.txt"}
+  ]
+}

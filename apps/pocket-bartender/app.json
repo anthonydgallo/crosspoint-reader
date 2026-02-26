@@ -1,0 +1,17 @@
+{
+  "name": "Pocket Bartender",
+  "type": "textviewer",
+  "version": "1.0",
+  "entries": [
+    {"title": "Old Fashioned", "file": "old-fashioned.txt"},
+    {"title": "Margarita", "file": "margarita.txt"},
+    {"title": "Mojito", "file": "mojito.txt"},
+    {"title": "Negroni", "file": "negroni.txt"},
+    {"title": "Espresso Martini", "file": "espresso-martini.txt"},
+    {"title": "Moscow Mule", "file": "moscow-mule.txt"},
+    {"title": "Daiquiri", "file": "daiquiri.txt"},
+    {"title": "Manhattan", "file": "manhattan.txt"},
+    {"title": "Whiskey Sour", "file": "whiskey-sour.txt"},
+    {"title": "Paloma", "file": "paloma.txt"}
+  ]
+}
