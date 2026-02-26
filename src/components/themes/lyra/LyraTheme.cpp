@@ -26,6 +26,13 @@
 #include "components/icons/text24.h"
 #include "components/icons/transfer.h"
 #include "components/icons/wifi.h"
+#include "components/icons/art24.h"
+#include "components/icons/calculator24.h"
+#include "components/icons/flashcard24.h"
+#include "components/icons/minesweeper24.h"
+#include "components/icons/quote24.h"
+#include "components/icons/rosary24.h"
+#include "components/icons/texteditor24.h"
 #include "fontIds.h"
 
 // Internal constants
@@ -56,6 +63,20 @@ const uint8_t* iconForName(UIIcon icon, int size) {
         return Book24Icon;
       case UIIcon::File:
         return File24Icon;
+      case UIIcon::Art:
+        return Art24Icon;
+      case UIIcon::Calculator:
+        return Calculator24Icon;
+      case UIIcon::Minesweeper:
+        return Minesweeper24Icon;
+      case UIIcon::Rosary:
+        return Rosary24Icon;
+      case UIIcon::Flashcard:
+        return Flashcard24Icon;
+      case UIIcon::Quote:
+        return Quote24Icon;
+      case UIIcon::TextEditor:
+        return TextEditor24Icon;
       default:
         return nullptr;
     }
