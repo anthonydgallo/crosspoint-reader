@@ -1,0 +1,1 @@
+The first computer programmer was Ada Lovelace, who wrote the first algorithm intended for a machine in 1843 -- over a century before modern computers existed.

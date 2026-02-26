@@ -1,0 +1,66 @@
+LOGIC PUZZLES
+
+Think carefully before checking the answer.
+
+---
+
+1. A man is looking at a photograph.
+Someone asks, "Whose picture are you
+looking at?" He replies: "Brothers and
+sisters I have none, but that man's
+father is my father's son."
+Who is in the photograph?
+
+Answer: His son.
+
+---
+
+2. You are in a room with three light
+switches. Each controls one of three
+bulbs in the next room. You can only
+enter the next room once. How do you
+figure out which switch controls which
+bulb?
+
+Answer: Turn switch 1 on for 10 minutes,
+then turn it off. Turn switch 2 on. Enter
+the room. The warm bulb is switch 1. The
+lit bulb is switch 2. The cold, dark bulb
+is switch 3.
+
+---
+
+3. A farmer needs to cross a river with a
+fox, a chicken, and a bag of grain. His
+boat can only carry one item at a time.
+The fox will eat the chicken if left
+alone, and the chicken will eat the grain.
+How does he get everything across?
+
+Answer: Take the chicken across first.
+Go back, take the fox across. Bring the
+chicken back. Take the grain across.
+Go back and take the chicken across last.
+
+---
+
+4. You have 8 identical-looking balls.
+One is slightly heavier. Using a balance
+scale only twice, how do you find the
+heavy ball?
+
+Answer: Weigh 3 vs 3. If balanced, weigh
+the remaining 2 against each other. If
+unbalanced, take the heavier group of 3
+and weigh 1 vs 1. If balanced, the third
+is heaviest. If not, the scale tells you.
+
+---
+
+5. Two fathers and two sons go fishing.
+They each catch one fish, but only three
+fish are caught total. How?
+
+Answer: They are a grandfather, father,
+and son. The father is both a father and
+a son.

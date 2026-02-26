@@ -1,0 +1,12 @@
+{
+  "name": "Brain Teasers & Riddles",
+  "type": "textviewer",
+  "version": "1.0",
+  "entries": [
+    {"title": "Classic Riddles", "file": "classic-riddles.txt"},
+    {"title": "Logic Puzzles", "file": "logic-puzzles.txt"},
+    {"title": "Lateral Thinking", "file": "lateral-thinking.txt"},
+    {"title": "Math Riddles", "file": "math-riddles.txt"},
+    {"title": "Word Puzzles", "file": "word-puzzles.txt"}
+  ]
+}
