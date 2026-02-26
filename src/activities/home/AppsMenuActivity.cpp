@@ -8,6 +8,20 @@
 #include "components/UITheme.h"
 #include "fontIds.h"
 
+namespace {
+UIIcon iconForAppType(const std::string& type) {
+  if (type == "art") return UIIcon::Art;
+  if (type == "calculator") return UIIcon::Calculator;
+  if (type == "minesweeper") return UIIcon::Minesweeper;
+  if (type == "rosary") return UIIcon::Rosary;
+  if (type == "flashcard") return UIIcon::Flashcard;
+  if (type == "randomquote") return UIIcon::Quote;
+  if (type == "texteditor") return UIIcon::TextEditor;
+  if (type == "textviewer") return UIIcon::Text;
+  return UIIcon::File;
+}
+}  // namespace
+
 void AppsMenuActivity::onEnter() {
   Activity::onEnter();
 
@@ -75,7 +89,8 @@ void AppsMenuActivity::render(Activity::RenderLock&&) {
 
   GUI.drawList(
       renderer, Rect{0, contentTop, pageWidth, contentHeight}, totalItems, selectorIndex,
-      [this](int index) { return loadedApps[index].name; }, nullptr, nullptr, nullptr);
+      [this](int index) { return loadedApps[index].name; }, nullptr,
+      [this](int index) { return iconForAppType(loadedApps[index].type); }, nullptr);
 
   const auto labels = mappedInput.mapLabels(tr(STR_HOME), tr(STR_OPEN), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);

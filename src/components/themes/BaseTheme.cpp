@@ -12,6 +12,18 @@
 #include "I18n.h"
 #include "RecentBooksStore.h"
 #include "components/UITheme.h"
+#include "components/icons/art24.h"
+#include "components/icons/book24.h"
+#include "components/icons/calculator24.h"
+#include "components/icons/file24.h"
+#include "components/icons/flashcard24.h"
+#include "components/icons/folder24.h"
+#include "components/icons/image24.h"
+#include "components/icons/minesweeper24.h"
+#include "components/icons/quote24.h"
+#include "components/icons/rosary24.h"
+#include "components/icons/text24.h"
+#include "components/icons/texteditor24.h"
 #include "fontIds.h"
 
 // Internal constants
@@ -20,6 +32,38 @@ constexpr int batteryPercentSpacing = 4;
 constexpr int homeMenuMargin = 20;
 constexpr int homeMarginTop = 30;
 constexpr int subtitleY = 738;
+constexpr int baseListIconSize = 24;
+
+const uint8_t* baseIconForName(UIIcon icon) {
+  switch (icon) {
+    case UIIcon::Folder:
+      return Folder24Icon;
+    case UIIcon::Text:
+      return Text24Icon;
+    case UIIcon::Image:
+      return Image24Icon;
+    case UIIcon::Book:
+      return Book24Icon;
+    case UIIcon::File:
+      return File24Icon;
+    case UIIcon::Art:
+      return Art24Icon;
+    case UIIcon::Calculator:
+      return Calculator24Icon;
+    case UIIcon::Minesweeper:
+      return Minesweeper24Icon;
+    case UIIcon::Rosary:
+      return Rosary24Icon;
+    case UIIcon::Flashcard:
+      return Flashcard24Icon;
+    case UIIcon::Quote:
+      return Quote24Icon;
+    case UIIcon::TextEditor:
+      return TextEditor24Icon;
+    default:
+      return nullptr;
+  }
+}
 
 // Helper: draw battery icon at given position
 void drawBatteryIcon(const GfxRenderer& renderer, int x, int y, int battWidth, int rectHeight, uint16_t percentage) {
@@ -223,24 +267,42 @@ void BaseTheme::drawList(const GfxRenderer& renderer, Rect rect, int itemCount, 
   if (selectedIndex >= 0) {
     renderer.fillRect(0, rect.y + selectedIndex % pageItems * rowHeight - 2, rect.width, rowHeight);
   }
+  // Calculate icon offset
+  int iconOffset = 0;
+  if (rowIcon != nullptr) {
+    iconOffset = baseListIconSize + 6;
+  }
+
   // Draw all items
   const auto pageStartIndex = selectedIndex / pageItems * pageItems;
   for (int i = pageStartIndex; i < itemCount && i < pageStartIndex + pageItems; i++) {
     const int itemY = rect.y + (i % pageItems) * rowHeight;
-    int textWidth = contentWidth - BaseMetrics::values.contentSidePadding * 2 - (rowValue != nullptr ? 60 : 0);
+    int textWidth =
+        contentWidth - BaseMetrics::values.contentSidePadding * 2 - iconOffset - (rowValue != nullptr ? 60 : 0);
+
+    int textX = rect.x + BaseMetrics::values.contentSidePadding + iconOffset;
+
+    // Draw icon
+    if (rowIcon != nullptr) {
+      UIIcon icon = rowIcon(i);
+      const uint8_t* iconBitmap = baseIconForName(icon);
+      if (iconBitmap != nullptr) {
+        renderer.drawIcon(iconBitmap, rect.x + BaseMetrics::values.contentSidePadding, itemY + 3, baseListIconSize,
+                          baseListIconSize);
+      }
+    }
 
     // Draw name
     auto itemName = rowTitle(i);
     auto font = (rowSubtitle != nullptr) ? UI_12_FONT_ID : UI_10_FONT_ID;
     auto item = renderer.truncatedText(font, itemName.c_str(), textWidth);
-    renderer.drawText(font, rect.x + BaseMetrics::values.contentSidePadding, itemY, item.c_str(), i != selectedIndex);
+    renderer.drawText(font, textX, itemY, item.c_str(), i != selectedIndex);
 
     if (rowSubtitle != nullptr) {
       // Draw subtitle
       std::string subtitleText = rowSubtitle(i);
       auto subtitle = renderer.truncatedText(UI_10_FONT_ID, subtitleText.c_str(), textWidth);
-      renderer.drawText(UI_10_FONT_ID, rect.x + BaseMetrics::values.contentSidePadding, itemY + 30, subtitle.c_str(),
-                        i != selectedIndex);
+      renderer.drawText(UI_10_FONT_ID, textX, itemY + 30, subtitle.c_str(), i != selectedIndex);
     }
 
     if (rowValue != nullptr) {
