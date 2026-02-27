@@ -15,6 +15,7 @@
 //   "randomquote" - Full-screen random quote viewer using text files
 //   "texteditor" - Simple text editor for creating/editing .txt files
 //   "flashcard"  - Spaced-repetition flashcard study app using TSV card files
+//   "imageviewer" - Image viewer that displays PNG/JPEG images from an images/ subfolder
 //
 // Example app.json for a textviewer app:
 // {
