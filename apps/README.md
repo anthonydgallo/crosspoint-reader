@@ -154,6 +154,48 @@ This is compatible with the standard Anki TSV export format (Notes in Plain Text
 
 **Card file limits:** TSV files are limited to ~4KB due to device memory constraints.
 
+### Image Viewer App
+
+The `imageviewer` type displays images from a dedicated `images/` subfolder within the app directory. Supported formats are PNG, JPEG (.jpg/.jpeg), and HEIC (.heic — listed but not yet decodable on-device).
+
+Create a folder under `/apps/` with this structure:
+
+```
+apps/my-photos/
+├── app.json
+└── images/
+    ├── photo1.png
+    ├── photo2.jpg
+    └── landscape.jpeg
+```
+
+The `app.json` manifest:
+
+```json
+{
+  "name": "My Photos",
+  "type": "imageviewer",
+  "version": "1.0"
+}
+```
+
+No `entries` array is needed — the app automatically scans the `images/` subfolder for supported image files and sorts them alphabetically.
+
+**Features:**
+- Automatic image discovery from the `images/` subfolder
+- Full-screen image display scaled to fit the e-ink display (480×800)
+- Navigate between images with Up/Down (or Left/Right) buttons
+- Images are converted to grayscale with dithering for optimal e-ink rendering
+
+**Controls:**
+- **Confirm**: View the selected image
+- **Up/Down** (or **Left/Right**) in image view: Previous/Next image
+- **Back**: Return to the image list
+
+**Supported formats:** `.png`, `.jpg`, `.jpeg`. HEIC files (`.heic`) are recognized but cannot be decoded on the device hardware.
+
+**Image size limits:** Images up to 2048×3072 pixels are supported. Larger images will fail to load. For best results, use images sized close to the display resolution (480×800).
+
 ### Built-in App Types
 
 Some app types have specialized UI built into the firmware:
@@ -163,6 +205,7 @@ Some app types have specialized UI built into the firmware:
 - `calculator` - Simple integer calculator with +, -, *, and /
 - `randomquote` - Full-screen random quote viewer for short inspirational texts
 - `flashcard` - Spaced-repetition flashcard study app with SM-2 scheduling
+- `imageviewer` - Image viewer for PNG and JPEG files from an `images/` subfolder
 
 These types only require a minimal `app.json` manifest to activate them.
 

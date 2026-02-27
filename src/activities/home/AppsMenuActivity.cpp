@@ -18,6 +18,7 @@ UIIcon iconForAppType(const std::string& type) {
   if (type == "randomquote") return UIIcon::Quote;
   if (type == "texteditor") return UIIcon::TextEditor;
   if (type == "textviewer") return UIIcon::Text;
+  if (type == "imageviewer") return UIIcon::Image;
   return UIIcon::File;
 }
 }  // namespace

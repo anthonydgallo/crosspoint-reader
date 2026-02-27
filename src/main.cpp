@@ -39,6 +39,7 @@
 #include "apps/RandomQuoteAppActivity.h"
 #include "apps/TextEditorAppActivity.h"
 #include "apps/TextViewerAppActivity.h"
+#include "apps/ImageViewerAppActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "util/ButtonNavigator.h"
@@ -257,6 +258,8 @@ void onOpenApp(const AppManifest& app) {
     enterNewActivity(new TextEditorAppActivity(renderer, mappedInputManager, app, onGoHome));
   } else if (app.type == "flashcard") {
     enterNewActivity(new FlashcardAppActivity(renderer, mappedInputManager, app, onGoHome));
+  } else if (app.type == "imageviewer") {
+    enterNewActivity(new ImageViewerAppActivity(renderer, mappedInputManager, app, onGoHome));
   } else {
     LOG_ERR("MAIN", "Unknown app type: %s", app.type.c_str());
     onGoHome();
