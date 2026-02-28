@@ -58,6 +58,8 @@ find src -name "*.cpp" -o -name "*.h" | xargs clang-format -i
 6. `constexpr` First: Compile-time constants and lookup tables must be `constexpr`, not just `static const`. This moves computation to compile time, enables dead-branch elimination, and guarantees flash placement. Use `static constexpr` for class-level constants.
 7. `std::vector` Pre-allocation: Always call `.reserve(N)` before any `push_back()` loop. Each growth event allocates a new block (2×), copies all elements, then frees the old one — three heap operations that fragment DRAM. When the final size is unknown, estimate conservatively.
 8. SPIFFS Write Throttling: Never write a settings file on every user interaction. Guard all writes with a value-change check (`if (newVal == _current) return;`). Progress saves during reading must be debounced — write on activity exit or every N page turns, not on every turn. SPIFFS sectors have a finite erase cycle limit.
+9. TLS Memory Gate: For every HTTPS/TLS operation, validate both `ESP.getFreeHeap()` and `ESP.getMaxAllocHeap()` before starting. Free heap alone is insufficient on fragmented ESP32-C3 heaps.
+10. Long-Loop Safety: Any per-file/per-item loop must call `yield()` regularly and reset watchdog (`esp_task_wdt_reset()`) when execution can exceed watchdog windows.
 
 ---
 

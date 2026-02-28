@@ -6,6 +6,7 @@
 #include <I18n.h>
 #include <Logging.h>
 #include <WiFi.h>
+#include <esp_task_wdt.h>
 
 #include <algorithm>
 
@@ -21,7 +22,22 @@ constexpr int PAGE_ITEMS = 15;
 constexpr const char* INSTALL_ALL_LABEL = "Install all";
 
 // Minimum free heap required for TLS connections (~40-50KB for TLS + working memory)
-constexpr size_t MIN_HEAP_FOR_TLS = 60000;
+constexpr size_t MIN_FREE_HEAP_FOR_TLS = 60000;
+// TLS handshakes also need a sufficiently large contiguous block; free heap
+// alone can be misleading when the heap is fragmented after many installs.
+constexpr size_t MIN_MAX_ALLOC_HEAP_FOR_TLS = 50000;
+constexpr uint32_t INTER_APP_COOLDOWN_MS = 35;
+
+bool hasSufficientTlsMemory(const char* phase) {
+  const uint32_t freeHeap = ESP.getFreeHeap();
+  const uint32_t maxAllocHeap = ESP.getMaxAllocHeap();
+  if (freeHeap < MIN_FREE_HEAP_FOR_TLS || maxAllocHeap < MIN_MAX_ALLOC_HEAP_FOR_TLS) {
+    LOG_ERR("STORE", "Insufficient memory for %s (free: %u/%zu, max alloc: %u/%zu)", phase, freeHeap,
+            MIN_FREE_HEAP_FOR_TLS, maxAllocHeap, MIN_MAX_ALLOC_HEAP_FOR_TLS);
+    return false;
+  }
+  return true;
+}
 
 std::string toDisplayName(const std::string& folderName) {
   std::string display = folderName;
@@ -283,12 +299,12 @@ void AppStoreActivity::render(RenderLock&&) {
 }
 
 void AppStoreActivity::fetchAppList() {
-  LOG_DBG("STORE", "Fetching app list from GitHub (free heap: %d)", ESP.getFreeHeap());
+  LOG_DBG("STORE", "Fetching app list from GitHub (free heap: %d, max alloc: %d)", ESP.getFreeHeap(),
+          ESP.getMaxAllocHeap());
 
   // Check heap before attempting TLS connection - the initial API call also
   // needs ~40-50KB for TLS, not just the per-manifest fetches checked below
-  if (ESP.getFreeHeap() < MIN_HEAP_FOR_TLS) {
-    LOG_ERR("STORE", "Insufficient memory for TLS (%d bytes free, need %zu)", ESP.getFreeHeap(), MIN_HEAP_FOR_TLS);
+  if (!hasSufficientTlsMemory("app list fetch")) {
     state = StoreState::ERROR;
     errorMessage = tr(STR_FETCH_FEED_FAILED);
     requestUpdate();
@@ -359,8 +375,9 @@ void AppStoreActivity::fetchAppList() {
   // Fetch display names from app.json manifests, but only if we have enough heap
   // for TLS connections. Each HTTPS request temporarily needs ~40-50KB for TLS.
   for (auto& app : apps) {
-    if (ESP.getFreeHeap() < MIN_HEAP_FOR_TLS) {
-      LOG_INF("STORE", "Low memory (%d bytes free), skipping remaining manifest fetches", ESP.getFreeHeap());
+    esp_task_wdt_reset();
+    if (!hasSufficientTlsMemory("manifest fetch")) {
+      LOG_INF("STORE", "Low memory, skipping remaining manifest fetches");
       break;
     }
 
@@ -402,9 +419,17 @@ void AppStoreActivity::installApps(const std::vector<size_t>& appIndexes) {
   completionMessage.clear();
 
   for (const size_t appIndex : appIndexes) {
+    esp_task_wdt_reset();
     if (appIndex >= apps.size()) continue;
     auto& app = apps[appIndex];
     if (app.installed) continue;
+
+    if (!hasSufficientTlsMemory("bulk install")) {
+      state = StoreState::ERROR;
+      errorMessage = tr(STR_INSTALL_FAILED);
+      requestUpdate(true);
+      return;
+    }
 
     if (!installSingleApp(app)) {
       return;
@@ -415,6 +440,8 @@ void AppStoreActivity::installApps(const std::vector<size_t>& appIndexes) {
       selectedApps[appIndex] = false;
     }
     completedInstallCount++;
+    yield();
+    delay(INTER_APP_COOLDOWN_MS);
   }
 
   if (completedInstallCount == 0) return;
@@ -435,9 +462,16 @@ bool AppStoreActivity::installSingleApp(RemoteApp& app) {
   downloadProgress = 0;
   downloadTotal = 0;
   lastRenderedPercent = -1;
-  requestUpdate();
+  requestUpdate(true);
 
-  LOG_DBG("STORE", "Installing app: %s (free heap: %d)", app.name.c_str(), ESP.getFreeHeap());
+  LOG_DBG("STORE", "Installing app: %s (free heap: %d, max alloc: %d)", app.name.c_str(), ESP.getFreeHeap(),
+          ESP.getMaxAllocHeap());
+  if (!hasSufficientTlsMemory("app install")) {
+    state = StoreState::ERROR;
+    errorMessage = tr(STR_INSTALL_FAILED);
+    requestUpdate(true);
+    return false;
+  }
 
   // Collect file info in its own scope so the API response and JSON document
   // are freed before we start the download loop
@@ -499,10 +533,10 @@ bool AppStoreActivity::installSingleApp(RemoteApp& app) {
 
   downloadTotal = totalSize;
   downloadProgress = 0;
-  requestUpdate();
+  requestUpdate(true);
 
-  LOG_DBG("STORE", "Downloading %d file(s), %zu bytes total (free heap: %d)", static_cast<int>(files.size()),
-          totalSize, ESP.getFreeHeap());
+  LOG_DBG("STORE", "Downloading %d file(s), %zu bytes total (free heap: %d, max alloc: %d)",
+          static_cast<int>(files.size()), totalSize, ESP.getFreeHeap(), ESP.getMaxAllocHeap());
 
   // Create the app directory on SD card
   std::string appDir = std::string("/apps/") + app.name;
@@ -511,14 +545,15 @@ bool AppStoreActivity::installSingleApp(RemoteApp& app) {
   // Download each file
   size_t downloadedSoFar = 0;
   for (const auto& file : files) {
+    esp_task_wdt_reset();
     std::string destPath = appDir + "/" + file.name;
-    LOG_DBG("STORE", "Downloading: %s (%zu bytes, free heap: %d)", file.name.c_str(), file.size, ESP.getFreeHeap());
+    LOG_DBG("STORE", "Downloading: %s (%zu bytes, free heap: %d, max alloc: %d)", file.name.c_str(), file.size,
+            ESP.getFreeHeap(), ESP.getMaxAllocHeap());
 
-    if (ESP.getFreeHeap() < MIN_HEAP_FOR_TLS) {
-      LOG_ERR("STORE", "Insufficient memory to continue download (%d bytes free)", ESP.getFreeHeap());
+    if (!hasSufficientTlsMemory("file download")) {
       state = StoreState::ERROR;
       errorMessage = tr(STR_INSTALL_FAILED);
-      requestUpdate();
+      requestUpdate(true);
       return false;
     }
 
@@ -541,7 +576,7 @@ bool AppStoreActivity::installSingleApp(RemoteApp& app) {
       int currentPercent10 = currentPercent / 10;
       if (currentPercent10 > lastPercent10 || currentPercent >= 100) {
         lastRenderedPercent = currentPercent;
-        requestUpdate();
+        requestUpdate(true);
         delay(50);  // Brief delay to let render task process the update
       }
     }
@@ -549,7 +584,8 @@ bool AppStoreActivity::installSingleApp(RemoteApp& app) {
     yield();  // Let FreeRTOS process other tasks between file downloads
   }
 
-  LOG_DBG("STORE", "App installed successfully: %s (free heap: %d)", app.name.c_str(), ESP.getFreeHeap());
+  LOG_DBG("STORE", "App installed successfully: %s (free heap: %d, max alloc: %d)", app.name.c_str(),
+          ESP.getFreeHeap(), ESP.getMaxAllocHeap());
   return true;
 }
 
@@ -599,7 +635,7 @@ bool AppStoreActivity::downloadFile(const std::string& url, const std::string& d
       int lastPercent10 = lastRenderedPercent / 10;
       if (currentPercent10 > lastPercent10) {
         lastRenderedPercent = currentPercent;
-        requestUpdate();
+        requestUpdate(true);
       }
     }
   });
