@@ -189,9 +189,9 @@ void WifiSelectionActivity::selectNetwork(const int index) {
   if (selectedRequiresPassword) {
     // Show password entry
     state = WifiSelectionState::PASSWORD_ENTRY;
-    // Don't allow screen updates while changing activity
-    {
-    RenderLock lock(*this);
+    // Note: enterNewActivity() acquires its own RenderLock internally,
+    // so we must NOT take one here — the mutex is non-recursive and
+    // double-locking would deadlock the main loop task.
     enterNewActivity(createKeyboard(
         renderer, mappedInput, tr(STR_ENTER_WIFI_PASSWORD),
         "",     // No initial text
@@ -207,7 +207,6 @@ void WifiSelectionActivity::selectNetwork(const int index) {
           exitActivity();
           requestUpdate();
         }));
-    }
   } else {
     // Connect directly for open networks
     attemptConnection();
