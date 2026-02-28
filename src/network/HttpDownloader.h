@@ -1,6 +1,7 @@
 #pragma once
 #include <HalStorage.h>
 
+#include <cstdint>
 #include <functional>
 #include <string>
 
@@ -10,6 +11,11 @@
  */
 class HttpDownloader {
  public:
+  static constexpr size_t DOWNLOAD_CHUNK_SIZE = 1024;
+  static constexpr uint32_t HTTP_TIMEOUT_MS = 12000;
+  static constexpr uint32_t HTTP_CONNECT_TIMEOUT_MS = 8000;
+  static constexpr uint32_t DOWNLOAD_STALL_TIMEOUT_MS = 15000;
+
   using ProgressCallback = std::function<void(size_t downloaded, size_t total)>;
 
   enum DownloadError {
@@ -37,7 +43,7 @@ class HttpDownloader {
    * @param progress Optional progress callback
    * @param useAuth If true, send configured OPDS Basic auth credentials
    * @return DownloadError indicating success or failure type
-   */
+  */
   static DownloadError downloadToFile(const std::string& url, const std::string& destPath,
                                       ProgressCallback progress = nullptr, bool useAuth = false);
 };

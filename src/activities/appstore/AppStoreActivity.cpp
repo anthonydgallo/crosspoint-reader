@@ -11,18 +11,40 @@
 #include "activities/network/WifiSelectionActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "network/GitHubRepoConfig.h"
 #include "network/HttpDownloader.h"
 
 namespace {
-constexpr const char* GITHUB_API_BASE =
-    "https://api.github.com/repos/anthonydgallo/crosspoint-reader/contents/apps";
-constexpr const char* GITHUB_RAW_BASE =
-    "https://raw.githubusercontent.com/anthonydgallo/crosspoint-reader/master/apps";
-constexpr const char* GITHUB_REF = "?ref=master";
 constexpr int PAGE_ITEMS = 15;
 
 // Minimum free heap required for TLS connections (~40-50KB for TLS + working memory)
 constexpr size_t MIN_HEAP_FOR_TLS = 60000;
+
+std::string toDisplayName(const std::string& folderName) {
+  std::string display = folderName;
+  bool capitalizeNext = true;
+  for (char& ch : display) {
+    if (ch == '-' || ch == '_') {
+      ch = ' ';
+      capitalizeNext = true;
+      continue;
+    }
+
+    if (capitalizeNext && ch >= 'a' && ch <= 'z') {
+      ch = static_cast<char>(ch - ('a' - 'A'));
+    }
+
+    capitalizeNext = (ch == ' ');
+  }
+  return display;
+}
+
+std::string appManifestUrl(const std::string& appName) {
+  constexpr const char* branch = CROSSPOINT_GITHUB_BRANCH;
+  const std::string branchName = (branch[0] != '\0') ? branch : "master";
+  return std::string("https://raw.githubusercontent.com/") + CROSSPOINT_GITHUB_OWNER + "/" + CROSSPOINT_GITHUB_REPO +
+         "/" + branchName + "/apps/" + appName + "/app.json";
+}
 }  // namespace
 
 void AppStoreActivity::onEnter() {
@@ -226,7 +248,7 @@ void AppStoreActivity::fetchAppList() {
   // before we start making additional HTTPS requests for manifests
   {
     std::string response;
-    std::string listUrl = std::string(GITHUB_API_BASE) + GITHUB_REF;
+    const std::string listUrl = GitHubRepoConfig::appsApiUrl();
     if (!HttpDownloader::fetchUrl(listUrl, response)) {
       state = StoreState::ERROR;
       errorMessage = tr(STR_FETCH_FEED_FAILED);
@@ -269,7 +291,7 @@ void AppStoreActivity::fetchAppList() {
 
       RemoteApp app;
       app.name = name;
-      app.displayName = name;  // Will be updated if we can fetch the manifest
+      app.displayName = toDisplayName(app.name);  // Will be updated if we can fetch the manifest
 
       // Check if already installed
       std::string appPath = std::string("/apps/") + name;
@@ -290,7 +312,7 @@ void AppStoreActivity::fetchAppList() {
       break;
     }
 
-    std::string manifestUrl = std::string(GITHUB_RAW_BASE) + "/" + app.name + "/app.json";
+    const std::string manifestUrl = appManifestUrl(app.name);
     std::string manifestContent;
     if (HttpDownloader::fetchUrl(manifestUrl, manifestContent)) {
       JsonDocument manifestDoc;
@@ -341,7 +363,7 @@ void AppStoreActivity::installApp(const RemoteApp& app) {
 
   {
     // Fetch the file list for this app folder
-    std::string apiUrl = std::string(GITHUB_API_BASE) + "/" + app.name + GITHUB_REF;
+    const std::string apiUrl = GitHubRepoConfig::appFolderApiUrl(app.name);
     std::string response;
     if (!HttpDownloader::fetchUrl(apiUrl, response)) {
       state = StoreState::ERROR;
@@ -412,7 +434,7 @@ void AppStoreActivity::installApp(const RemoteApp& app) {
       return;
     }
 
-    if (!downloadFile(file.downloadUrl, destPath, file.size)) {
+    if (!downloadFile(file.downloadUrl, destPath)) {
       // Clean up on failure
       LOG_ERR("STORE", "Failed to download: %s", file.name.c_str());
       state = StoreState::ERROR;
@@ -445,25 +467,24 @@ void AppStoreActivity::installApp(const RemoteApp& app) {
   requestUpdate();
 }
 
-bool AppStoreActivity::downloadFile(const std::string& url, const std::string& destPath, size_t fileSize) {
+bool AppStoreActivity::downloadFile(const std::string& url, const std::string& destPath) {
   const size_t prevProgress = downloadProgress;
 
-  auto result =
-      HttpDownloader::downloadToFile(url, destPath, [this, prevProgress, fileSize](size_t downloaded, size_t total) {
-        // Update overall progress based on this file's contribution
-        downloadProgress = prevProgress + downloaded;
+  auto result = HttpDownloader::downloadToFile(url, destPath, [this, prevProgress](size_t downloaded, size_t /*total*/) {
+    // Update overall progress based on this file's contribution
+    downloadProgress = prevProgress + downloaded;
 
-        // Throttle e-ink refreshes: only refresh every 10% of total progress
-        if (downloadTotal > 0) {
-          int currentPercent = static_cast<int>((static_cast<uint64_t>(downloadProgress) * 100) / downloadTotal);
-          int currentPercent10 = currentPercent / 10;
-          int lastPercent10 = lastRenderedPercent / 10;
-          if (currentPercent10 > lastPercent10) {
-            lastRenderedPercent = currentPercent;
-            requestUpdate();
-          }
-        }
-      });
+    // Throttle e-ink refreshes: only refresh every 10% of total progress
+    if (downloadTotal > 0) {
+      int currentPercent = static_cast<int>((static_cast<uint64_t>(downloadProgress) * 100) / downloadTotal);
+      int currentPercent10 = currentPercent / 10;
+      int lastPercent10 = lastRenderedPercent / 10;
+      if (currentPercent10 > lastPercent10) {
+        lastRenderedPercent = currentPercent;
+        requestUpdate();
+      }
+    }
+  });
 
   return result == HttpDownloader::OK;
 }
