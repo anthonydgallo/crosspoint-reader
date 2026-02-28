@@ -1,6 +1,5 @@
 #pragma once
 
-#include <functional>
 #include <string>
 #include <vector>
 
@@ -18,7 +17,6 @@ class ImageViewerAppActivity final : public Activity {
   int currentImageIndex = 0;
 
   const AppManifest manifest;
-  const std::function<void()> onGoHome;
 
   struct ImageFile {
     std::string name;  // Display name (filename)
@@ -33,11 +31,10 @@ class ImageViewerAppActivity final : public Activity {
   std::string getTempBmpPath() const;
 
  public:
-  explicit ImageViewerAppActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, const AppManifest& manifest,
-                                  const std::function<void()>& onGoHome)
-      : Activity("ImageViewer", renderer, mappedInput), manifest(manifest), onGoHome(onGoHome) {}
+  explicit ImageViewerAppActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, const AppManifest& manifest)
+      : Activity("ImageViewer", renderer, mappedInput), manifest(manifest) {}
   void onEnter() override;
   void onExit() override;
   void loop() override;
-  void render(Activity::RenderLock&&) override;
+  void render(RenderLock&&) override;
 };

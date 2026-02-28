@@ -174,7 +174,7 @@ void CalculatorAppActivity::loop() {
   }
 }
 
-void CalculatorAppActivity::render(Activity::RenderLock&&) {
+void CalculatorAppActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
   const int pageWidth = renderer.getScreenWidth();

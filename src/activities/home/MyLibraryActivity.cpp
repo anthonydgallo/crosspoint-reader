@@ -1,11 +1,13 @@
 #include "MyLibraryActivity.h"
 
+#include <Epub.h>
 #include <GfxRenderer.h>
 #include <HalStorage.h>
 #include <I18n.h>
 
 #include <algorithm>
 
+#include "../util/ConfirmationActivity.h"
 #include "MappedInputManager.h"
 #include "activities/util/KeyboardFactory.h"
 #include "components/UITheme.h"
@@ -105,7 +107,7 @@ void MyLibraryActivity::loadFiles() {
 }
 
 void MyLibraryActivity::onEnter() {
-  ActivityWithSubactivity::onEnter();
+  Activity::onEnter();
 
   loadFiles();
   selectorIndex = 0;
@@ -114,17 +116,19 @@ void MyLibraryActivity::onEnter() {
 }
 
 void MyLibraryActivity::onExit() {
-  ActivityWithSubactivity::onExit();
+  Activity::onExit();
   files.clear();
 }
 
-void MyLibraryActivity::loop() {
-  // Delegate to subactivity (e.g. keyboard for rename)
-  if (subActivity) {
-    subActivity->loop();
-    return;
+void MyLibraryActivity::clearFileMetadata(const std::string& fullPath) {
+  // Only clear cache for .epub files
+  if (StringUtils::checkFileExtension(fullPath, ".epub")) {
+    Epub(fullPath, "/.crosspoint").clearCache();
+    LOG_DBG("MyLibrary", "Cleared metadata cache for: %s", fullPath.c_str());
   }
+}
 
+void MyLibraryActivity::loop() {
   // Delete confirmation state
   if (state == State::DELETE_CONFIRM) {
     if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
@@ -298,6 +302,7 @@ void MyLibraryActivity::loop() {
         return;
       }
     }
+    return;
   }
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
@@ -316,7 +321,7 @@ void MyLibraryActivity::loop() {
 
         requestUpdate();
       } else {
-        onGoHome();
+        onGoHome();  // Activity base convenience method
       }
     }
   }
@@ -404,15 +409,17 @@ void MyLibraryActivity::startRename() {
 
   state = State::BROWSING;
 
-  {
-    RenderLock lock(*this);
-    exitActivity();
-    enterNewActivity(createKeyboard(
-        renderer, mappedInput, "Rename", itemName, 10,
-        0,      // unlimited length
-        false,  // not password
-        [this, isDir, extension](const std::string& newName) {
-          if (!newName.empty() && selectorIndex < files.size()) {
+  startActivityForResult(
+      std::unique_ptr<Activity>(createKeyboard(
+          renderer, mappedInput, "Rename", itemName, 10,
+          0,      // unlimited length
+          false,  // not password
+          nullptr, nullptr)),
+      [this, isDir, extension](const ActivityResult& res) {
+        if (!res.isCancelled) {
+          auto* keyboardResult = std::get_if<KeyboardResult>(&res.data);
+          if (keyboardResult && !keyboardResult->text.empty() && selectorIndex < files.size()) {
+            const std::string& newName = keyboardResult->text;
             std::string dir = basepath;
             if (dir.back() != '/') dir += "/";
 
@@ -429,7 +436,6 @@ void MyLibraryActivity::startRename() {
               LOG_DBG("MY_LIBRARY", "Renamed successfully");
 
               if (!isDir) {
-                // Update recent books store if this book was tracked
                 const auto bookData = RECENT_BOOKS.getDataFromBook(oldPath);
                 if (!bookData.path.empty()) {
                   RECENT_BOOKS.removeBook(oldPath);
@@ -438,20 +444,14 @@ void MyLibraryActivity::startRename() {
               }
 
               loadFiles();
-              // Select the renamed item
               selectorIndex = findEntry(isDir ? newName + "/" : newFileName);
             } else {
               LOG_ERR("MY_LIBRARY", "Failed to rename");
             }
           }
-          exitActivity();
-          requestUpdate();
-        },
-        [this]() {
-          exitActivity();
-          requestUpdate();
-        }));
-  }
+        }
+        requestUpdate();
+      });
 }
 
 void MyLibraryActivity::loadMoveDirs() {
@@ -572,12 +572,12 @@ std::string getFileName(std::string filename) {
   return filename.substr(0, pos);
 }
 
-void MyLibraryActivity::render(Activity::RenderLock&&) {
+void MyLibraryActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
-  auto metrics = UITheme::getInstance().getMetrics();
+  const auto& metrics = UITheme::getInstance().getMetrics();
 
   if (state == State::DELETE_CONFIRM && selectorIndex < files.size()) {
     std::string itemName = files[selectorIndex];

@@ -1,7 +1,5 @@
 #pragma once
 
-#include <functional>
-
 #include "activities/Activity.h"
 #include "util/ButtonNavigator.h"
 
@@ -16,8 +14,6 @@ class ArtGalleryActivity final : public Activity {
   ButtonNavigator buttonNavigator;
   int currentArt = 0;
   bool showingArt = false;
-
-  const std::function<void()> onGoHome;
 
   static constexpr int ART_COUNT = 8;
 
@@ -44,12 +40,11 @@ class ArtGalleryActivity final : public Activity {
   const char* getArtTitle(int index) const;
 
  public:
-  explicit ArtGalleryActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
-                              const std::function<void()>& onGoHome)
-      : Activity("ArtGallery", renderer, mappedInput), onGoHome(onGoHome) {}
+  explicit ArtGalleryActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
+      : Activity("ArtGallery", renderer, mappedInput) {}
 
   void onEnter() override;
   void onExit() override;
   void loop() override;
-  void render(Activity::RenderLock&&) override;
+  void render(RenderLock&&) override;
 };

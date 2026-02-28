@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <functional>
 #include <string>
 #include <vector>
 
@@ -78,7 +77,6 @@ class FlashcardAppActivity final : public Activity {
   int sessionReviewed = 0;
 
   const AppManifest manifest;
-  const std::function<void()> onGoHome;
 
   // --- Helpers ---
   void loadDeck(int entryIndex);
@@ -102,12 +100,11 @@ class FlashcardAppActivity final : public Activity {
   int countLearned() const;
 
  public:
-  explicit FlashcardAppActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, const AppManifest& manifest,
-                                const std::function<void()>& onGoHome)
-      : Activity("Flashcard", renderer, mappedInput), manifest(manifest), onGoHome(onGoHome) {}
+  explicit FlashcardAppActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, const AppManifest& manifest)
+      : Activity("Flashcard", renderer, mappedInput), manifest(manifest) {}
 
   void onEnter() override;
   void onExit() override;
   void loop() override;
-  void render(Activity::RenderLock&&) override;
+  void render(RenderLock&&) override;
 };

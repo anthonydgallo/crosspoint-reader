@@ -150,7 +150,7 @@ void RandomQuoteAppActivity::wrapText(const char* text, int fontId, int maxWidth
   }
 }
 
-void RandomQuoteAppActivity::render(Activity::RenderLock&&) {
+void RandomQuoteAppActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
   auto metrics = UITheme::getInstance().getMetrics();

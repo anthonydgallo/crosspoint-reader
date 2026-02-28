@@ -8,45 +8,24 @@
 #include "components/UITheme.h"
 #include "fontIds.h"
 
-void RosaryPrayerReferenceActivity::taskTrampoline(void* param) {
-  auto* self = static_cast<RosaryPrayerReferenceActivity*>(param);
-  self->displayTaskLoop();
-}
-
 void RosaryPrayerReferenceActivity::onEnter() {
   Activity::onEnter();
-  renderingMutex = xSemaphoreCreateMutex();
   selectorIndex = 0;
   showingPrayerText = false;
-  updateRequired = true;
-
-  xTaskCreate(&RosaryPrayerReferenceActivity::taskTrampoline, "PrayerRefTask",
-              4096,               // Stack size
-              this,               // Parameters
-              1,                  // Priority
-              &displayTaskHandle  // Task handle
-  );
+  requestUpdate();
 }
 
 void RosaryPrayerReferenceActivity::onExit() {
   Activity::onExit();
-
-  xSemaphoreTake(renderingMutex, portMAX_DELAY);
-  if (displayTaskHandle) {
-    vTaskDelete(displayTaskHandle);
-    displayTaskHandle = nullptr;
-  }
-  vSemaphoreDelete(renderingMutex);
-  renderingMutex = nullptr;
 }
 
 void RosaryPrayerReferenceActivity::loop() {
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     if (showingPrayerText) {
       showingPrayerText = false;
-      updateRequired = true;
+      requestUpdate();
     } else {
-      onComplete();
+      finish();
     }
     return;
   }
@@ -59,18 +38,18 @@ void RosaryPrayerReferenceActivity::loop() {
 
   buttonNavigator.onNext([this] {
     selectorIndex = ButtonNavigator::nextIndex(selectorIndex, RosaryData::PRAYER_REFERENCE_COUNT);
-    updateRequired = true;
+    requestUpdate();
   });
 
   buttonNavigator.onPrevious([this] {
     selectorIndex = ButtonNavigator::previousIndex(selectorIndex, RosaryData::PRAYER_REFERENCE_COUNT);
-    updateRequired = true;
+    requestUpdate();
   });
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
     selectedPrayer = selectorIndex;
     showingPrayerText = true;
-    updateRequired = true;
+    requestUpdate();
   }
 }
 
@@ -128,19 +107,7 @@ void RosaryPrayerReferenceActivity::drawWrappedText(int fontId, int x, int y, in
   }
 }
 
-void RosaryPrayerReferenceActivity::displayTaskLoop() {
-  while (true) {
-    if (updateRequired) {
-      updateRequired = false;
-      xSemaphoreTake(renderingMutex, portMAX_DELAY);
-      render();
-      xSemaphoreGive(renderingMutex);
-    }
-    vTaskDelay(10 / portTICK_PERIOD_MS);
-  }
-}
-
-void RosaryPrayerReferenceActivity::render() const {
+void RosaryPrayerReferenceActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
   const auto pageWidth = renderer.getScreenWidth();

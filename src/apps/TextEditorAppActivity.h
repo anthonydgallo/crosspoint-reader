@@ -1,11 +1,10 @@
 #pragma once
 
-#include <functional>
 #include <string>
 #include <vector>
 
 #include "AppManifest.h"
-#include "activities/ActivityWithSubactivity.h"
+#include "activities/Activity.h"
 #include "util/ButtonNavigator.h"
 
 // Simple text editor app for creating and editing .txt files on the SD card.
@@ -15,7 +14,7 @@
 // App type: "texteditor"
 // The app.json needs only name, type, and version (no entries required).
 // The editor opens a file browser rooted at the app's folder on the SD card.
-class TextEditorAppActivity final : public ActivityWithSubactivity {
+class TextEditorAppActivity final : public Activity {
   // Editor states
   enum class State {
     FILE_BROWSER,  // Browsing files in the app folder
@@ -60,7 +59,6 @@ class TextEditorAppActivity final : public ActivityWithSubactivity {
   std::vector<int> lineStartOffsets;
 
   const AppManifest manifest;
-  const std::function<void()> onGoHome;
 
   // File browser methods
   void loadFiles();
@@ -88,11 +86,10 @@ class TextEditorAppActivity final : public ActivityWithSubactivity {
   void renderConfirmQuit();
 
  public:
-  explicit TextEditorAppActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, const AppManifest& manifest,
-                                 const std::function<void()>& onGoHome)
-      : ActivityWithSubactivity("TextEditor", renderer, mappedInput), manifest(manifest), onGoHome(onGoHome) {}
+  explicit TextEditorAppActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, const AppManifest& manifest)
+      : Activity("TextEditor", renderer, mappedInput), manifest(manifest) {}
   void onEnter() override;
   void onExit() override;
   void loop() override;
-  void render(Activity::RenderLock&&) override;
+  void render(RenderLock&&) override;
 };

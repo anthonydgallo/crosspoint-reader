@@ -1,7 +1,5 @@
 #pragma once
 
-#include <functional>
-
 #include "AppManifest.h"
 #include "activities/Activity.h"
 
@@ -27,7 +25,6 @@ class CalculatorAppActivity final : public Activity {
   Mode mode = Mode::EnterFirst;
 
   const AppManifest manifest;
-  const std::function<void()> onGoHome;
 
   void resetCalculator();
   void resetDigits();
@@ -38,12 +35,11 @@ class CalculatorAppActivity final : public Activity {
   void computeResult();
 
  public:
-  explicit CalculatorAppActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, const AppManifest& manifest,
-                                 const std::function<void()>& onGoHome)
-      : Activity("Calculator", renderer, mappedInput), manifest(manifest), onGoHome(onGoHome) {}
+  explicit CalculatorAppActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, const AppManifest& manifest)
+      : Activity("Calculator", renderer, mappedInput), manifest(manifest) {}
 
   void onEnter() override;
   void onExit() override;
   void loop() override;
-  void render(Activity::RenderLock&&) override;
+  void render(RenderLock&&) override;
 };

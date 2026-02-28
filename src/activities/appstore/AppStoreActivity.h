@@ -1,10 +1,9 @@
 #pragma once
 
-#include <functional>
 #include <string>
 #include <vector>
 
-#include "../ActivityWithSubactivity.h"
+#include "../Activity.h"
 #include "util/ButtonNavigator.h"
 
 // Represents a remote app available for download from GitHub
@@ -19,11 +18,10 @@ struct RemoteApp {
  * Uses the GitHub Contents API to list available app folders, then downloads
  * all files for a selected app to /apps/<name>/ on the SD card.
  */
-class AppStoreActivity final : public ActivityWithSubactivity {
+class AppStoreActivity final : public Activity {
  public:
   enum class StoreState {
     CHECK_WIFI,
-    WIFI_SELECTION,
     LOADING,
     BROWSING,
     DOWNLOADING,
@@ -31,14 +29,13 @@ class AppStoreActivity final : public ActivityWithSubactivity {
     ERROR
   };
 
-  explicit AppStoreActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
-                            const std::function<void()>& onGoHome)
-      : ActivityWithSubactivity("AppStore", renderer, mappedInput), onGoHome(onGoHome) {}
+  explicit AppStoreActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
+      : Activity("AppStore", renderer, mappedInput) {}
 
   void onEnter() override;
   void onExit() override;
   void loop() override;
-  void render(Activity::RenderLock&&) override;
+  void render(RenderLock&&) override;
 
  private:
   ButtonNavigator buttonNavigator;
@@ -50,8 +47,6 @@ class AppStoreActivity final : public ActivityWithSubactivity {
   size_t downloadProgress = 0;
   size_t downloadTotal = 0;
   int lastRenderedPercent = -1;  // Track last rendered percentage for e-ink refresh throttling
-
-  const std::function<void()> onGoHome;
 
   // When true, fetchAppList() runs on the next loop() iteration instead of
   // being called directly from a callback.  This avoids stack overflow: the

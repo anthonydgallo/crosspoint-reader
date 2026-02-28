@@ -3,6 +3,7 @@
 #include <GfxRenderer.h>
 #include <I18n.h>
 
+#include "ActivityManager.h"
 #include "MappedInputManager.h"
 #include "apps/AppLoader.h"
 #include "components/UITheme.h"
@@ -43,7 +44,7 @@ void AppsMenuActivity::loop() {
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
     if (selectorIndex < listSize) {
-      onAppOpen(loadedApps[selectorIndex]);
+      activityManager.goToOpenApp(loadedApps[selectorIndex]);
     }
     return;
   }
@@ -74,7 +75,7 @@ void AppsMenuActivity::loop() {
   });
 }
 
-void AppsMenuActivity::render(Activity::RenderLock&&) {
+void AppsMenuActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
   const auto pageWidth = renderer.getScreenWidth();

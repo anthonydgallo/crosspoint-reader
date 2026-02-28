@@ -491,7 +491,7 @@ void MinesweeperAppActivity::loop() {
 // Rendering
 // ---------------------------------------------------------------------------
 
-void MinesweeperAppActivity::render(Activity::RenderLock&&) {
+void MinesweeperAppActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
   const int pageWidth = renderer.getScreenWidth();

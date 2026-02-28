@@ -6,36 +6,15 @@
 #include "components/UITheme.h"
 #include "fontIds.h"
 
-void RosaryMysteryListActivity::taskTrampoline(void* param) {
-  auto* self = static_cast<RosaryMysteryListActivity*>(param);
-  self->displayTaskLoop();
-}
-
 void RosaryMysteryListActivity::onEnter() {
   Activity::onEnter();
-  renderingMutex = xSemaphoreCreateMutex();
   selectorIndex = 0;
   showingAllSets = false;
-  updateRequired = true;
-
-  xTaskCreate(&RosaryMysteryListActivity::taskTrampoline, "MysteryListTask",
-              4096,               // Stack size
-              this,               // Parameters
-              1,                  // Priority
-              &displayTaskHandle  // Task handle
-  );
+  requestUpdate();
 }
 
 void RosaryMysteryListActivity::onExit() {
   Activity::onExit();
-
-  xSemaphoreTake(renderingMutex, portMAX_DELAY);
-  if (displayTaskHandle) {
-    vTaskDelete(displayTaskHandle);
-    displayTaskHandle = nullptr;
-  }
-  vSemaphoreDelete(renderingMutex);
-  renderingMutex = nullptr;
 }
 
 void RosaryMysteryListActivity::loop() {
@@ -43,9 +22,9 @@ void RosaryMysteryListActivity::loop() {
     if (showingAllSets) {
       showingAllSets = false;
       selectorIndex = 0;
-      updateRequired = true;
+      requestUpdate();
     } else {
-      onComplete();
+      finish();
     }
     return;
   }
@@ -61,12 +40,12 @@ void RosaryMysteryListActivity::loop() {
 
   buttonNavigator.onNext([this, itemCount] {
     selectorIndex = ButtonNavigator::nextIndex(selectorIndex, itemCount);
-    updateRequired = true;
+    requestUpdate();
   });
 
   buttonNavigator.onPrevious([this, itemCount] {
     selectorIndex = ButtonNavigator::previousIndex(selectorIndex, itemCount);
-    updateRequired = true;
+    requestUpdate();
   });
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
@@ -75,30 +54,18 @@ void RosaryMysteryListActivity::loop() {
       currentSet = static_cast<RosaryData::MysterySet>(selectorIndex);
       showingAllSets = false;
       selectorIndex = 0;
-      updateRequired = true;
+      requestUpdate();
     } else if (selectorIndex == 5) {
       // "View All Sets"
       showingAllSets = true;
       selectorIndex = 0;
-      updateRequired = true;
+      requestUpdate();
     }
     // Selecting a mystery (0-4) doesn't do anything special; they're displayed inline
   }
 }
 
-void RosaryMysteryListActivity::displayTaskLoop() {
-  while (true) {
-    if (updateRequired) {
-      updateRequired = false;
-      xSemaphoreTake(renderingMutex, portMAX_DELAY);
-      render();
-      xSemaphoreGive(renderingMutex);
-    }
-    vTaskDelay(10 / portTICK_PERIOD_MS);
-  }
-}
-
-void RosaryMysteryListActivity::render() const {
+void RosaryMysteryListActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
   const auto pageWidth = renderer.getScreenWidth();

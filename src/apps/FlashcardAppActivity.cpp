@@ -662,7 +662,7 @@ void FlashcardAppActivity::loop() {
 // Rendering
 // ---------------------------------------------------------------------------
 
-void FlashcardAppActivity::render(Activity::RenderLock&&) {
+void FlashcardAppActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
   const int pageWidth = renderer.getScreenWidth();

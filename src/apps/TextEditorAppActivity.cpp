@@ -19,7 +19,7 @@
 // ---------------------------------------------------------------------------
 
 void TextEditorAppActivity::onEnter() {
-  ActivityWithSubactivity::onEnter();
+  Activity::onEnter();
 
   state = State::FILE_BROWSER;
   browsePath = manifest.path;
@@ -33,7 +33,7 @@ void TextEditorAppActivity::onEnter() {
 }
 
 void TextEditorAppActivity::onExit() {
-  ActivityWithSubactivity::onExit();
+  Activity::onExit();
   files.clear();
   wrappedLines.clear();
   lineStartOffsets.clear();
@@ -108,17 +108,25 @@ void TextEditorAppActivity::openFile(const std::string& filename) {
 
 void TextEditorAppActivity::createNewFile() {
   // Use keyboard to get filename, then enter editor
-  enterNewActivity(createKeyboard(
-      renderer, mappedInput, "File Name", "", 10,
-      60,     // max filename length
-      false,  // not password
-      [this](const std::string& filename) {
-        exitActivity();
-
-        if (filename.empty()) {
+  startActivityForResult(
+      std::unique_ptr<Activity>(createKeyboard(
+          renderer, mappedInput, "File Name", "", 10,
+          60,     // max filename length
+          false,  // not password
+          nullptr, nullptr)),
+      [this](const ActivityResult& res) {
+        if (res.isCancelled) {
           requestUpdate();
           return;
         }
+
+        auto* keyboardResult = std::get_if<KeyboardResult>(&res.data);
+        if (!keyboardResult || keyboardResult->text.empty()) {
+          requestUpdate();
+          return;
+        }
+
+        const std::string& filename = keyboardResult->text;
 
         // Sanitize and add .txt extension if needed
         std::string sanitized = StringUtils::sanitizeFilename(filename);
@@ -132,11 +140,7 @@ void TextEditorAppActivity::createNewFile() {
 
         std::string filePath = browsePath + "/" + sanitized;
         enterEditor(filePath, "");
-      },
-      [this]() {
-        exitActivity();
-        requestUpdate();
-      }));
+      });
 }
 
 // ---------------------------------------------------------------------------
@@ -390,12 +394,6 @@ void TextEditorAppActivity::ensureCursorVisible() {
 // ---------------------------------------------------------------------------
 
 void TextEditorAppActivity::loop() {
-  // Delegate to subactivity (keyboard for new file name)
-  if (subActivity) {
-    subActivity->loop();
-    return;
-  }
-
   switch (state) {
     case State::FILE_BROWSER: {
       if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
@@ -465,22 +463,24 @@ void TextEditorAppActivity::loop() {
 
       // Confirm = open keyboard to type
       if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-        enterNewActivity(createKeyboard(
-            renderer, mappedInput, "Type Text", "", 10,
-            0,      // unlimited
-            false,  // not password
-            [this](const std::string& typed) {
-              exitActivity();
-              // Insert each character from the keyboard
-              for (char c : typed) {
-                insertChar(c);
+        startActivityForResult(
+            std::unique_ptr<Activity>(createKeyboard(
+                renderer, mappedInput, "Type Text", "", 10,
+                0,      // unlimited
+                false,  // not password
+                nullptr, nullptr)),
+            [this](const ActivityResult& res) {
+              if (!res.isCancelled) {
+                auto* keyboardResult = std::get_if<KeyboardResult>(&res.data);
+                if (keyboardResult) {
+                  // Insert each character from the keyboard
+                  for (char c : keyboardResult->text) {
+                    insertChar(c);
+                  }
+                }
               }
               requestUpdate();
-            },
-            [this]() {
-              exitActivity();
-              requestUpdate();
-            }));
+            });
         return;
       }
 
@@ -575,7 +575,7 @@ void TextEditorAppActivity::loop() {
 // Rendering
 // ---------------------------------------------------------------------------
 
-void TextEditorAppActivity::render(Activity::RenderLock&&) {
+void TextEditorAppActivity::render(RenderLock&&) {
   switch (state) {
     case State::FILE_BROWSER:
       renderFileBrowser();

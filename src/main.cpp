@@ -18,28 +18,8 @@
 #include "KOReaderCredentialStore.h"
 #include "MappedInputManager.h"
 #include "RecentBooksStore.h"
-#include "activities/boot_sleep/BootActivity.h"
-#include "activities/boot_sleep/SleepActivity.h"
-#include "activities/browser/OpdsBookBrowserActivity.h"
-#include "activities/home/HomeActivity.h"
-#include "activities/home/MyLibraryActivity.h"
-#include "activities/home/RecentBooksActivity.h"
-#include "activities/network/CrossPointWebServerActivity.h"
-#include "activities/reader/ReaderActivity.h"
-#include "activities/art/ArtGalleryActivity.h"
-#include "activities/rosary/RosaryActivity.h"
-#include "activities/appstore/AppStoreActivity.h"
-#include "activities/home/AppsMenuActivity.h"
-#include "activities/settings/SettingsActivity.h"
-#include "activities/util/FullScreenMessageActivity.h"
-#include "apps/AppManifest.h"
-#include "apps/CalculatorAppActivity.h"
-#include "apps/MinesweeperAppActivity.h"
-#include "apps/FlashcardAppActivity.h"
-#include "apps/RandomQuoteAppActivity.h"
-#include "apps/TextEditorAppActivity.h"
-#include "apps/TextViewerAppActivity.h"
-#include "apps/ImageViewerAppActivity.h"
+#include "activities/Activity.h"
+#include "activities/ActivityManager.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "util/ButtonNavigator.h"
@@ -49,8 +29,8 @@ HalDisplay display;
 HalGPIO gpio;
 MappedInputManager mappedInputManager(gpio);
 GfxRenderer renderer(display);
+ActivityManager activityManager(renderer, mappedInputManager);
 FontDecompressor fontDecompressor;
-Activity* currentActivity;
 
 // Fonts
 EpdFont bookerly14RegularFont(&bookerly_14_regular);
@@ -121,19 +101,6 @@ EpdFontFamily ui12FontFamily(&ui12RegularFont, &ui12BoldFont);
 unsigned long t1 = 0;
 unsigned long t2 = 0;
 
-void exitActivity() {
-  if (currentActivity) {
-    currentActivity->onExit();
-    delete currentActivity;
-    currentActivity = nullptr;
-  }
-}
-
-void enterNewActivity(Activity* activity) {
-  currentActivity = activity;
-  currentActivity->onEnter();
-}
-
 // Verify power button press duration on wake-up from deep sleep
 // Pre-condition: isWakeupByPowerButton() == true
 void verifyPowerButtonDuration() {
@@ -188,10 +155,11 @@ void waitForPowerRelease() {
 
 // Enter deep sleep mode
 void enterDeepSleep() {
-  APP_STATE.lastSleepFromReader = currentActivity && currentActivity->isReaderActivity();
+  HalPowerManager::Lock powerLock;  // Ensure we are at normal CPU frequency for sleep preparation
+  APP_STATE.lastSleepFromReader = activityManager.isReaderActivity();
   APP_STATE.saveToFile();
-  exitActivity();
-  enterNewActivity(new SleepActivity(renderer, mappedInputManager));
+
+  activityManager.goToSleep();
 
   display.deepSleep();
   LOG_DBG("MAIN", "Power button press calibration value: %lu ms", t2 - t1);
@@ -200,92 +168,10 @@ void enterDeepSleep() {
   powerManager.startDeepSleep(gpio);
 }
 
-void onGoHome();
-void onGoToMyLibraryWithPath(const std::string& path);
-void onGoToRecentBooks();
-void onGoToReader(const std::string& initialEpubPath) {
-  const std::string bookPath = initialEpubPath;  // Copy before exitActivity() invalidates the reference
-  exitActivity();
-  enterNewActivity(new ReaderActivity(renderer, mappedInputManager, bookPath, onGoHome, onGoToMyLibraryWithPath));
-}
-
-void onGoToFileTransfer() {
-  exitActivity();
-  enterNewActivity(new CrossPointWebServerActivity(renderer, mappedInputManager, onGoHome));
-}
-
-void onGoToSettings() {
-  exitActivity();
-  enterNewActivity(new SettingsActivity(renderer, mappedInputManager, onGoHome));
-}
-
-void onGoToMyLibrary() {
-  exitActivity();
-  enterNewActivity(new MyLibraryActivity(renderer, mappedInputManager, onGoHome, onGoToReader));
-}
-
-void onGoToRecentBooks() {
-  exitActivity();
-  enterNewActivity(new RecentBooksActivity(renderer, mappedInputManager, onGoHome, onGoToReader));
-}
-
-void onGoToMyLibraryWithPath(const std::string& path) {
-  exitActivity();
-  enterNewActivity(new MyLibraryActivity(renderer, mappedInputManager, onGoHome, onGoToReader, path));
-}
-
-void onGoToBrowser() {
-  exitActivity();
-  enterNewActivity(new OpdsBookBrowserActivity(renderer, mappedInputManager, onGoHome));
-}
-
-void onOpenApp(const AppManifest& app) {
-  exitActivity();
-
-  if (app.type == "rosary") {
-    enterNewActivity(new RosaryActivity(renderer, mappedInputManager, onGoHome));
-  } else if (app.type == "art") {
-    enterNewActivity(new ArtGalleryActivity(renderer, mappedInputManager, onGoHome));
-  } else if (app.type == "minesweeper") {
-    enterNewActivity(new MinesweeperAppActivity(renderer, mappedInputManager, app, onGoHome));
-  } else if (app.type == "calculator") {
-    enterNewActivity(new CalculatorAppActivity(renderer, mappedInputManager, app, onGoHome));
-  } else if (app.type == "textviewer") {
-    enterNewActivity(new TextViewerAppActivity(renderer, mappedInputManager, app, onGoHome));
-  } else if (app.type == "randomquote") {
-    enterNewActivity(new RandomQuoteAppActivity(renderer, mappedInputManager, app, onGoHome));
-  } else if (app.type == "texteditor") {
-    enterNewActivity(new TextEditorAppActivity(renderer, mappedInputManager, app, onGoHome));
-  } else if (app.type == "flashcard") {
-    enterNewActivity(new FlashcardAppActivity(renderer, mappedInputManager, app, onGoHome));
-  } else if (app.type == "imageviewer") {
-    enterNewActivity(new ImageViewerAppActivity(renderer, mappedInputManager, app, onGoHome));
-  } else {
-    LOG_ERR("MAIN", "Unknown app type: %s", app.type.c_str());
-    onGoHome();
-  }
-}
-
-void onGoToAppStore() {
-  exitActivity();
-  enterNewActivity(new AppStoreActivity(renderer, mappedInputManager, onGoHome));
-}
-
-void onGoToAppsMenu() {
-  exitActivity();
-  enterNewActivity(new AppsMenuActivity(renderer, mappedInputManager, onGoHome, onOpenApp));
-}
-
-void onGoHome() {
-  exitActivity();
-  enterNewActivity(new HomeActivity(renderer, mappedInputManager, onGoToReader, onGoToMyLibrary, onGoToRecentBooks,
-                                    onGoToSettings, onGoToFileTransfer, onGoToBrowser, onGoToAppsMenu,
-                                    onGoToAppStore));
-}
-
 void setupDisplayAndFonts() {
   display.begin();
   renderer.begin();
+  activityManager.begin();
   LOG_DBG("MAIN", "Display initialized");
 
   // Initialize font decompressor for compressed reader fonts
@@ -335,8 +221,7 @@ void setup() {
   if (!Storage.begin()) {
     LOG_ERR("MAIN", "SD card initialization failed");
     setupDisplayAndFonts();
-    exitActivity();
-    enterNewActivity(new FullScreenMessageActivity(renderer, mappedInputManager, "SD card error", EpdFontFamily::BOLD));
+    activityManager.goToFullScreenMessage("SD card error", EpdFontFamily::BOLD);
     return;
   }
 
@@ -369,8 +254,7 @@ void setup() {
 
   setupDisplayAndFonts();
 
-  exitActivity();
-  enterNewActivity(new BootActivity(renderer, mappedInputManager));
+  activityManager.goToBoot();
 
   APP_STATE.loadFromFile();
   RECENT_BOOKS.loadFromFile();
@@ -380,9 +264,9 @@ void setup() {
   if (APP_STATE.openEpubPath.empty() || !APP_STATE.lastSleepFromReader ||
       mappedInputManager.isPressed(MappedInputManager::Button::Back) || APP_STATE.readerActivityLoadCount > 0) {
     if (SETTINGS.uiTheme == CrossPointSettings::UI_THEME::FILE_BROWSER) {
-      onGoToMyLibrary();
+      activityManager.goToMyLibrary();
     } else {
-      onGoHome();
+      activityManager.goHome();
     }
   } else {
     // Clear app state to avoid getting into a boot loop if the epub doesn't load
@@ -390,7 +274,7 @@ void setup() {
     APP_STATE.openEpubPath = "";
     APP_STATE.readerActivityLoadCount++;
     APP_STATE.saveToFile();
-    onGoToReader(path);
+    activityManager.goToReader(path);
   }
 
   // Ensure we're not still holding the power button before leaving setup
@@ -407,8 +291,8 @@ void loop() {
   renderer.setFadingFix(SETTINGS.fadingFix);
 
   if (Serial && millis() - lastMemPrint >= 10000) {
-    LOG_INF("MEM", "Free: %d bytes, Total: %d bytes, Min Free: %d bytes", ESP.getFreeHeap(), ESP.getHeapSize(),
-            ESP.getMinFreeHeap());
+    LOG_INF("MEM", "Free: %d bytes, Total: %d bytes, Min Free: %d bytes, MaxAlloc: %d bytes", ESP.getFreeHeap(),
+            ESP.getHeapSize(), ESP.getMinFreeHeap(), ESP.getMaxAllocHeap());
     lastMemPrint = millis();
   }
 
@@ -430,7 +314,7 @@ void loop() {
 
   // Check for any user activity (button press or release) or active background work
   static unsigned long lastActivityTime = millis();
-  if (gpio.wasAnyPressed() || gpio.wasAnyReleased() || (currentActivity && currentActivity->preventAutoSleep())) {
+  if (gpio.wasAnyPressed() || gpio.wasAnyReleased() || activityManager.preventAutoSleep()) {
     lastActivityTime = millis();         // Reset inactivity timer
     powerManager.setPowerSaving(false);  // Restore normal CPU frequency on user activity
   }
@@ -439,8 +323,8 @@ void loop() {
   if (gpio.isPressed(HalGPIO::BTN_POWER) && gpio.isPressed(HalGPIO::BTN_DOWN)) {
     if (screenshotButtonsReleased) {
       screenshotButtonsReleased = false;
-      if (currentActivity) {
-        Activity::RenderLock lock(*currentActivity);
+      {
+        RenderLock lock;
         ScreenshotUtil::takeScreenshot(renderer);
       }
     }
@@ -468,9 +352,7 @@ void loop() {
   }
 
   const unsigned long activityStartTime = millis();
-  if (currentActivity) {
-    currentActivity->loop();
-  }
+  activityManager.loop();
   const unsigned long activityDuration = millis() - activityStartTime;
 
   const unsigned long loopDuration = millis() - loopStartTime;
@@ -484,7 +366,7 @@ void loop() {
   // Add delay at the end of the loop to prevent tight spinning
   // When an activity requests skip loop delay (e.g., webserver running), use yield() for faster response
   // Otherwise, use longer delay to save power
-  if (currentActivity && currentActivity->skipLoopDelay()) {
+  if (activityManager.skipLoopDelay()) {
     powerManager.setPowerSaving(false);  // Make sure we're at full performance when skipLoopDelay is requested
     yield();                             // Give FreeRTOS a chance to run tasks, but return immediately
   } else {

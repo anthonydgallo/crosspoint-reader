@@ -40,7 +40,4 @@ class HttpDownloader {
    */
   static DownloadError downloadToFile(const std::string& url, const std::string& destPath,
                                       ProgressCallback progress = nullptr, bool useAuth = false);
-
- private:
-  static constexpr size_t DOWNLOAD_CHUNK_SIZE = 1024;
 };
