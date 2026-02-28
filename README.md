@@ -102,15 +102,21 @@ pio run --target upload
 
 ### Using your fork for App Store and OTA updates
 
-By default, App Store and "Check for updates" use the upstream repository (`crosspoint-reader/crosspoint-reader`).
+By default, OTA "Check for updates" uses `crosspoint-reader/crosspoint-reader`.
+App Store uses this fork's catalog source (`anthonydgallo/crosspoint-reader`) so `/apps` is available.
 
-To point firmware builds to your fork, add these build flags (for example under `[base] -> build_flags` in `platformio.ini`):
+To point OTA and App Store to your own fork, add these build flags (for example under `[base] -> build_flags` in `platformio.ini`):
 
 ```ini
 -DCROSSPOINT_GITHUB_OWNER=\"your-github-username\"
 -DCROSSPOINT_GITHUB_REPO=\"your-fork-repo\"
-# Optional: force a specific branch for App Store listing/install
+# Optional: force a specific branch for OTA release API
 -DCROSSPOINT_GITHUB_BRANCH=\"master\"
+
+# App Store source (catalog + app downloads)
+-DCROSSPOINT_APPS_GITHUB_OWNER=\"your-github-username\"
+-DCROSSPOINT_APPS_GITHUB_REPO=\"your-fork-repo\"
+-DCROSSPOINT_APPS_GITHUB_BRANCH=\"master\"
 ```
 
 For OTA updates to work from your fork, your fork must publish GitHub Releases that include a `firmware.bin` asset.

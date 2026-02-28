@@ -40,10 +40,7 @@ std::string toDisplayName(const std::string& folderName) {
 }
 
 std::string appManifestUrl(const std::string& appName) {
-  constexpr const char* branch = CROSSPOINT_GITHUB_BRANCH;
-  const std::string branchName = (branch[0] != '\0') ? branch : "master";
-  return std::string("https://raw.githubusercontent.com/") + CROSSPOINT_GITHUB_OWNER + "/" + CROSSPOINT_GITHUB_REPO +
-         "/" + branchName + "/apps/" + appName + "/app.json";
+  return GitHubRepoConfig::appManifestRawUrl(appName);
 }
 }  // namespace
 
@@ -249,6 +246,7 @@ void AppStoreActivity::fetchAppList() {
   {
     std::string response;
     const std::string listUrl = GitHubRepoConfig::appsApiUrl();
+    LOG_DBG("STORE", "App list URL: %s", listUrl.c_str());
     if (!HttpDownloader::fetchUrl(listUrl, response)) {
       state = StoreState::ERROR;
       errorMessage = tr(STR_FETCH_FEED_FAILED);
