@@ -7,6 +7,8 @@
 #include <Logging.h>
 #include <WiFi.h>
 
+#include <algorithm>
+
 #include "MappedInputManager.h"
 #include "activities/network/WifiSelectionActivity.h"
 #include "components/UITheme.h"
@@ -16,6 +18,7 @@
 
 namespace {
 constexpr int PAGE_ITEMS = 15;
+constexpr const char* INSTALL_ALL_LABEL = "Install all";
 
 // Minimum free heap required for TLS connections (~40-50KB for TLS + working memory)
 constexpr size_t MIN_HEAP_FOR_TLS = 60000;
@@ -49,8 +52,10 @@ void AppStoreActivity::onEnter() {
 
   state = StoreState::CHECK_WIFI;
   apps.clear();
+  selectedApps.clear();
   selectorIndex = 0;
   errorMessage.clear();
+  completionMessage.clear();
   fetchPending = false;
   statusMessage = tr(STR_CHECKING_WIFI);
   requestUpdate();
@@ -63,6 +68,8 @@ void AppStoreActivity::onExit() {
 
   WiFi.mode(WIFI_OFF);
   apps.clear();
+  selectedApps.clear();
+  completionMessage.clear();
 }
 
 void AppStoreActivity::loop() {
@@ -101,10 +108,11 @@ void AppStoreActivity::loop() {
   }
 
   if (state == StoreState::DOWNLOAD_COMPLETE) {
-    if (mappedInput.wasReleased(MappedInputManager::Button::Confirm) ||
-        mappedInput.wasReleased(MappedInputManager::Button::Back)) {
-      // Return home so the menu refreshes with the new app
-      onGoHome();
+    if (mappedInput.wasAnyReleased()) {
+      state = StoreState::BROWSING;
+      completionMessage.clear();
+      focusFirstInstallable();
+      requestUpdate();
     }
     return;
   }
@@ -112,11 +120,36 @@ void AppStoreActivity::loop() {
   // Browsing state
   if (state == StoreState::BROWSING) {
     if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-      if (!apps.empty() && !apps[selectorIndex].installed) {
-        installApp(apps[selectorIndex]);
+      const auto selectedIndexes = selectedInstallableIndexes();
+      if (!selectedIndexes.empty()) {
+        installApps(selectedIndexes);
+      } else if (!apps.empty() && selectorIndex >= 0 && selectorIndex < static_cast<int>(apps.size()) &&
+                 !apps[selectorIndex].installed) {
+        installApps({static_cast<size_t>(selectorIndex)});
       }
-    } else if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+      return;
+    }
+
+    if (mappedInput.wasReleased(MappedInputManager::Button::Left)) {
+      if (!apps.empty() && selectorIndex >= 0 && selectorIndex < static_cast<int>(apps.size()) &&
+          !apps[selectorIndex].installed && selectorIndex < static_cast<int>(selectedApps.size())) {
+        selectedApps[selectorIndex] = !selectedApps[selectorIndex];
+        requestUpdate();
+      }
+      return;
+    }
+
+    if (mappedInput.wasReleased(MappedInputManager::Button::Right)) {
+      const auto installable = allInstallableIndexes();
+      if (!installable.empty()) {
+        installApps(installable);
+      }
+      return;
+    }
+
+    if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
       onGoHome();
+      return;
     }
 
     if (!apps.empty()) {
@@ -183,7 +216,8 @@ void AppStoreActivity::render(RenderLock&&) {
   }
 
   if (state == StoreState::DOWNLOAD_COMPLETE) {
-    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 - 10, tr(STR_INSTALL_COMPLETE));
+    const char* completionText = completionMessage.empty() ? tr(STR_INSTALL_COMPLETE) : completionMessage.c_str();
+    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 - 10, completionText);
     renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 + 20, tr(STR_PRESS_ANY_CONTINUE));
     renderer.displayBuffer();
     return;
@@ -191,10 +225,28 @@ void AppStoreActivity::render(RenderLock&&) {
 
   // Browsing state
   const char* confirmLabel = "";
-  if (!apps.empty() && !apps[selectorIndex].installed) {
+  bool hasSelectedApps = false;
+  bool hasInstallableApps = false;
+  const size_t count = std::min(apps.size(), selectedApps.size());
+  for (size_t i = 0; i < apps.size(); i++) {
+    if (!apps[i].installed) {
+      hasInstallableApps = true;
+      if (i < count && selectedApps[i]) {
+        hasSelectedApps = true;
+      }
+    }
+    if (hasSelectedApps && hasInstallableApps) {
+      break;
+    }
+  }
+  const bool canToggleSelection =
+      !apps.empty() && selectorIndex >= 0 && selectorIndex < static_cast<int>(apps.size()) && !apps[selectorIndex].installed;
+  if (hasSelectedApps || canToggleSelection) {
     confirmLabel = tr(STR_INSTALL);
   }
-  const auto labels = mappedInput.mapLabels(tr(STR_BACK), confirmLabel, "", "");
+  const char* toggleLabel = canToggleSelection ? tr(STR_TOGGLE) : "";
+  const char* installAllLabel = hasInstallableApps ? INSTALL_ALL_LABEL : "";
+  const auto labels = mappedInput.mapLabels(tr(STR_BACK), confirmLabel, toggleLabel, installAllLabel);
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   if (apps.empty()) {
@@ -213,6 +265,8 @@ void AppStoreActivity::render(RenderLock&&) {
     std::string statusText;
     if (app.installed) {
       statusText = std::string("  [") + tr(STR_APP_ALREADY_INSTALLED) + "]";
+    } else if (i < selectedApps.size() && selectedApps[i]) {
+      statusText = std::string("  [") + tr(STR_SELECTED) + "]";
     }
 
     auto nameItem = renderer.truncatedText(UI_10_FONT_ID, displayText.c_str(), pageWidth - 40);
@@ -334,12 +388,48 @@ void AppStoreActivity::fetchAppList() {
     return;
   }
 
+  selectedApps.assign(apps.size(), false);
+  completionMessage.clear();
   state = StoreState::BROWSING;
-  selectorIndex = 0;
+  focusFirstInstallable();
   requestUpdate();
 }
 
-void AppStoreActivity::installApp(const RemoteApp& app) {
+void AppStoreActivity::installApps(const std::vector<size_t>& appIndexes) {
+  if (appIndexes.empty()) return;
+
+  size_t completedInstallCount = 0;
+  completionMessage.clear();
+
+  for (const size_t appIndex : appIndexes) {
+    if (appIndex >= apps.size()) continue;
+    auto& app = apps[appIndex];
+    if (app.installed) continue;
+
+    if (!installSingleApp(app)) {
+      return;
+    }
+
+    app.installed = true;
+    if (appIndex < selectedApps.size()) {
+      selectedApps[appIndex] = false;
+    }
+    completedInstallCount++;
+  }
+
+  if (completedInstallCount == 0) return;
+
+  if (completedInstallCount == 1) {
+    completionMessage = tr(STR_INSTALL_COMPLETE);
+  } else {
+    completionMessage = std::to_string(completedInstallCount) + " apps installed!";
+  }
+
+  state = StoreState::DOWNLOAD_COMPLETE;
+  requestUpdate();
+}
+
+bool AppStoreActivity::installSingleApp(RemoteApp& app) {
   state = StoreState::DOWNLOADING;
   statusMessage = app.displayName;
   downloadProgress = 0;
@@ -367,7 +457,7 @@ void AppStoreActivity::installApp(const RemoteApp& app) {
       state = StoreState::ERROR;
       errorMessage = tr(STR_INSTALL_FAILED);
       requestUpdate();
-      return;
+      return false;
     }
 
     JsonDocument doc;
@@ -377,7 +467,7 @@ void AppStoreActivity::installApp(const RemoteApp& app) {
       state = StoreState::ERROR;
       errorMessage = tr(STR_INSTALL_FAILED);
       requestUpdate();
-      return;
+      return false;
     }
 
     // Calculate total download size and collect file info
@@ -404,7 +494,7 @@ void AppStoreActivity::installApp(const RemoteApp& app) {
     state = StoreState::ERROR;
     errorMessage = tr(STR_INSTALL_FAILED);
     requestUpdate();
-    return;
+    return false;
   }
 
   downloadTotal = totalSize;
@@ -429,7 +519,7 @@ void AppStoreActivity::installApp(const RemoteApp& app) {
       state = StoreState::ERROR;
       errorMessage = tr(STR_INSTALL_FAILED);
       requestUpdate();
-      return;
+      return false;
     }
 
     if (!downloadFile(file.downloadUrl, destPath)) {
@@ -438,7 +528,7 @@ void AppStoreActivity::installApp(const RemoteApp& app) {
       state = StoreState::ERROR;
       errorMessage = tr(STR_INSTALL_FAILED);
       requestUpdate();
-      return;
+      return false;
     }
 
     downloadedSoFar += file.size;
@@ -460,9 +550,39 @@ void AppStoreActivity::installApp(const RemoteApp& app) {
   }
 
   LOG_DBG("STORE", "App installed successfully: %s (free heap: %d)", app.name.c_str(), ESP.getFreeHeap());
+  return true;
+}
 
-  state = StoreState::DOWNLOAD_COMPLETE;
-  requestUpdate();
+std::vector<size_t> AppStoreActivity::selectedInstallableIndexes() const {
+  std::vector<size_t> indexes;
+  const size_t count = std::min(apps.size(), selectedApps.size());
+  for (size_t i = 0; i < count; i++) {
+    if (!apps[i].installed && selectedApps[i]) {
+      indexes.push_back(i);
+    }
+  }
+  return indexes;
+}
+
+std::vector<size_t> AppStoreActivity::allInstallableIndexes() const {
+  std::vector<size_t> indexes;
+  for (size_t i = 0; i < apps.size(); i++) {
+    if (!apps[i].installed) {
+      indexes.push_back(i);
+    }
+  }
+  return indexes;
+}
+
+void AppStoreActivity::focusFirstInstallable() {
+  for (size_t i = 0; i < apps.size(); i++) {
+    if (!apps[i].installed) {
+      selectorIndex = static_cast<int>(i);
+      return;
+    }
+  }
+
+  selectorIndex = 0;
 }
 
 bool AppStoreActivity::downloadFile(const std::string& url, const std::string& destPath) {

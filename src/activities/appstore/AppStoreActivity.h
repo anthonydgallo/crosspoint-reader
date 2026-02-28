@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <cstddef>
 #include <vector>
 
 #include "../Activity.h"
@@ -41,9 +42,11 @@ class AppStoreActivity final : public Activity {
   ButtonNavigator buttonNavigator;
   StoreState state = StoreState::CHECK_WIFI;
   std::vector<RemoteApp> apps;
+  std::vector<bool> selectedApps;
   int selectorIndex = 0;
   std::string errorMessage;
   std::string statusMessage;
+  std::string completionMessage;
   size_t downloadProgress = 0;
   size_t downloadTotal = 0;
   int lastRenderedPercent = -1;  // Track last rendered percentage for e-ink refresh throttling
@@ -58,7 +61,11 @@ class AppStoreActivity final : public Activity {
   void launchWifiSelection();
   void onWifiSelectionComplete(bool connected);
   void fetchAppList();
-  void installApp(const RemoteApp& app);
+  bool installSingleApp(RemoteApp& app);
+  void installApps(const std::vector<size_t>& appIndexes);
+  std::vector<size_t> selectedInstallableIndexes() const;
+  std::vector<size_t> allInstallableIndexes() const;
+  void focusFirstInstallable();
   bool downloadFile(const std::string& url, const std::string& destPath);
   bool preventAutoSleep() override { return true; }
 };
