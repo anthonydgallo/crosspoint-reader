@@ -100,7 +100,7 @@ bool AppLoader::parseManifest(const std::string& appPath, AppManifest& out) {
   }
 
   // Parse entries for app types that use external text files
-  if (out.type == "textviewer" || out.type == "randomquote" || out.type == "flashcard") {
+  if (out.type == "textviewer" || out.type == "randomquote") {
     JsonArray entries = doc["entries"];
     if (entries) {
       for (JsonObject entry : entries) {
@@ -113,7 +113,7 @@ bool AppLoader::parseManifest(const std::string& appPath, AppManifest& out) {
     }
 
     if (out.entries.empty()) {
-      LOG_ERR("APPS", "App type %s in %s has no valid entries", out.type.c_str(), manifestPath.c_str());
+      LOG_ERR("APPS", "App %s (%s) has no valid entries", manifestPath.c_str(), out.type.c_str());
       return false;
     }
   }

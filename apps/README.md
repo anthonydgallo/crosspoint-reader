@@ -15,13 +15,9 @@ SD Card Root/
 │   │   ├── app.json
 │   │   ├── st-francis.txt
 │   │   └── serenity.txt
-│   ├── minesweeper/
-│   │   └── app.json
-│   ├── calculator/
-│   │   └── app.json
 │   ├── bible-random-quotes/
 │   │   ├── app.json
-│   │   └── john-3-16.txt
+│   │   └── quotes.txt
 │   └── (your custom apps here)
 ├── (your ebooks)
 └── ...
@@ -72,140 +68,32 @@ The `app.json` manifest:
 
 ### Random Quote App
 
-The `randomquote` type displays one full-screen quote at a time and picks a random new quote when the user presses Confirm, Up, or Down.
+The `randomquote` type displays one random quote in full-screen mode. This works well with a single large text file.
 
-Create a folder under `/apps/` with this structure:
-
-```
-apps/my-quotes/
-├── app.json
-├── quote1.txt
-├── quote2.txt
-└── quote3.txt
-```
-
-The `app.json` manifest:
+Manifest example:
 
 ```json
 {
-  "name": "Daily Verses",
+  "name": "Bible Random Quotes",
   "type": "randomquote",
   "version": "1.0",
   "entries": [
-    {"title": "John 3:16", "file": "quote1.txt"},
-    {"title": "Psalm 23:1", "file": "quote2.txt"},
-    {"title": "Romans 8:28", "file": "quote3.txt"}
+    {"title": "Bible", "file": "quotes.txt"}
   ]
 }
 ```
 
-Each entry should contain one short quote. The entry `title` is shown as the verse reference at the bottom of the screen.
-
-### Flashcard App
-
-The `flashcard` type provides a spaced-repetition study experience similar to Anki. Cards are stored in TSV (tab-separated values) files where each line is `front<TAB>back`.
-
-Create a folder under `/apps/` with this structure:
-
-```
-apps/my-flashcards/
-├── app.json
-├── deck1.tsv
-└── deck2.tsv
-```
-
-The `app.json` manifest:
-
-```json
-{
-  "name": "My Flashcards",
-  "type": "flashcard",
-  "version": "1.0",
-  "entries": [
-    {"title": "Spanish Basics", "file": "deck1.tsv"},
-    {"title": "World Capitals", "file": "deck2.tsv"}
-  ]
-}
-```
-
-Each entry points to a `.tsv` deck file. The TSV format is:
-
-```
-# Lines starting with # are comments
-front text	back text
-another front	another back
-```
-
-This is compatible with the standard Anki TSV export format (Notes in Plain Text).
-
-**Features:**
-- **Spaced repetition (SM-2):** Cards are scheduled using the SuperMemo 2 algorithm. Cards you find easy are shown less often; cards you struggle with are shown more frequently.
-- **Review ratings:** After revealing the answer, rate your recall as Again, Hard, Good, or Easy.
-- **Progress persistence:** Review state (intervals, ease factors, due dates) is saved to the SD card and persists across power cycles.
-- **New card limit:** Up to 20 new cards are introduced per study session.
-- **Browse mode:** Browse all cards in a deck without affecting review scheduling.
-- **Deck stats:** View total, due, new, and learned card counts before studying.
-
-**Controls in review mode:**
-- **Confirm** or **Right/Down**: Reveal the answer
-- **Left/Right** on answer screen: Select rating (Again / Hard / Good / Easy)
-- **Confirm** on answer screen: Submit rating and advance
-- **Back**: Return to previous screen
-
-**Card file limits:** TSV files are limited to ~4KB due to device memory constraints.
-
-### Image Viewer App
-
-The `imageviewer` type displays images from a dedicated `images/` subfolder within the app directory. Supported formats are PNG, JPEG (.jpg/.jpeg), and HEIC (.heic — listed but not yet decodable on-device).
-
-Create a folder under `/apps/` with this structure:
-
-```
-apps/my-photos/
-├── app.json
-└── images/
-    ├── photo1.png
-    ├── photo2.jpg
-    └── landscape.jpeg
-```
-
-The `app.json` manifest:
-
-```json
-{
-  "name": "My Photos",
-  "type": "imageviewer",
-  "version": "1.0"
-}
-```
-
-No `entries` array is needed — the app automatically scans the `images/` subfolder for supported image files and sorts them alphabetically.
-
-**Features:**
-- Automatic image discovery from the `images/` subfolder
-- Full-screen image display scaled to fit the e-ink display (480×800)
-- Navigate between images with Up/Down (or Left/Right) buttons
-- Images are converted to grayscale with dithering for optimal e-ink rendering
-
-**Controls:**
-- **Confirm**: View the selected image
-- **Up/Down** (or **Left/Right**) in image view: Previous/Next image
-- **Back**: Return to the image list
-
-**Supported formats:** `.png`, `.jpg`, `.jpeg`. HEIC files (`.heic`) are recognized but cannot be decoded on the device hardware.
-
-**Image size limits:** Images up to 2048×3072 pixels are supported. Larger images will fail to load. For best results, use images sized close to the display resolution (480×800).
+`quotes.txt` format:
+- One quote per line
+- Optional `Reference|Quote text` format per line
+- Empty lines and lines starting with `#` are ignored
 
 ### Built-in App Types
 
 Some app types have specialized UI built into the firmware:
 
 - `rosary` - Holy Rosary prayer guide with bead visualization and decade tracking
-- `minesweeper` - 8x8 minesweeper game (tap confirm to reveal, hold confirm to flag)
-- `calculator` - Simple integer calculator with +, -, *, and /
-- `randomquote` - Full-screen random quote viewer for short inspirational texts
-- `flashcard` - Spaced-repetition flashcard study app with SM-2 scheduling
-- `imageviewer` - Image viewer for PNG and JPEG files from an `images/` subfolder
+- `randomquote` - Full-screen random quote viewer
 
 These types only require a minimal `app.json` manifest to activate them.
 

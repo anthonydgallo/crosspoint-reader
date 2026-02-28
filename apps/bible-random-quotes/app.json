@@ -3,17 +3,6 @@
   "type": "randomquote",
   "version": "1.0",
   "entries": [
-    {"title": "John 3:16", "file": "john-3-16.txt"},
-    {"title": "Jeremiah 29:11", "file": "jeremiah-29-11.txt"},
-    {"title": "Philippians 4:6-7", "file": "philippians-4-6-7.txt"},
-    {"title": "Romans 8:28", "file": "romans-8-28.txt"},
-    {"title": "Psalm 23:1", "file": "psalm-23-1.txt"},
-    {"title": "Isaiah 41:10", "file": "isaiah-41-10.txt"},
-    {"title": "Joshua 1:9", "file": "joshua-1-9.txt"},
-    {"title": "Matthew 11:28", "file": "matthew-11-28.txt"},
-    {"title": "Proverbs 3:5-6", "file": "proverbs-3-5-6.txt"},
-    {"title": "Psalm 46:10", "file": "psalm-46-10.txt"},
-    {"title": "2 Timothy 1:7", "file": "2-timothy-1-7.txt"},
-    {"title": "Lamentations 3:22-23", "file": "lamentations-3-22-23.txt"}
+    {"title": "Bible", "file": "quotes.txt"}
   ]
 }
