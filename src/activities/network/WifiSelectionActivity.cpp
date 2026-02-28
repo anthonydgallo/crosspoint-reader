@@ -191,6 +191,10 @@ void WifiSelectionActivity::selectNetwork(const int index) {
   const auto* savedCred = WIFI_STORE.findCredential(selectedSSID);
   if (savedCred && !savedCred->password.empty()) {
     // Use saved password - connect directly
+    // Trust stored credential presence over scan encryption metadata: some APs
+    // can be reported as open during scan edge-cases, which would otherwise
+    // make us call WiFi.begin(ssid) without the saved password.
+    selectedRequiresPassword = true;
     enteredPassword = savedCred->password;
     usedSavedPassword = true;
     LOG_DBG("WiFi", "Using saved password for %s, length: %zu", selectedSSID.c_str(), enteredPassword.size());
@@ -286,6 +290,16 @@ void WifiSelectionActivity::checkConnectionStatus() {
     if (status == WL_NO_SSID_AVAIL) {
       connectionError = tr(STR_ERROR_NETWORK_NOT_FOUND);
     }
+    if (status == WL_CONNECT_FAILED && usedSavedPassword) {
+      connectionError = tr(STR_ERROR_INVALID_PASSWORD);
+    }
+    state = WifiSelectionState::CONNECTION_FAILED;
+    requestUpdate();
+    return;
+  }
+
+  if (status == WL_WRONG_PASSWORD) {
+    connectionError = tr(STR_ERROR_INVALID_PASSWORD);
     state = WifiSelectionState::CONNECTION_FAILED;
     requestUpdate();
     return;
