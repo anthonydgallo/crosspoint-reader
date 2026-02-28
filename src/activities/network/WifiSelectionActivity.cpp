@@ -253,6 +253,10 @@ void WifiSelectionActivity::checkConnectionStatus() {
   }
 
   const wl_status_t status = WiFi.status();
+  bool isWrongPasswordStatus = false;
+#if defined(WL_WRONG_PASSWORD)
+  isWrongPasswordStatus = (status == WL_WRONG_PASSWORD);
+#endif
 
   if (status == WL_CONNECTED) {
     // Successfully connected
@@ -285,21 +289,14 @@ void WifiSelectionActivity::checkConnectionStatus() {
     return;
   }
 
-  if (status == WL_CONNECT_FAILED || status == WL_NO_SSID_AVAIL) {
+  if (status == WL_CONNECT_FAILED || status == WL_NO_SSID_AVAIL || isWrongPasswordStatus) {
     connectionError = tr(STR_ERROR_GENERAL_FAILURE);
     if (status == WL_NO_SSID_AVAIL) {
       connectionError = tr(STR_ERROR_NETWORK_NOT_FOUND);
-    }
-    if (status == WL_CONNECT_FAILED && usedSavedPassword) {
+    } else if (isWrongPasswordStatus ||
+               (status == WL_CONNECT_FAILED && selectedRequiresPassword && !enteredPassword.empty())) {
       connectionError = tr(STR_ERROR_INVALID_PASSWORD);
     }
-    state = WifiSelectionState::CONNECTION_FAILED;
-    requestUpdate();
-    return;
-  }
-
-  if (status == WL_WRONG_PASSWORD) {
-    connectionError = tr(STR_ERROR_INVALID_PASSWORD);
     state = WifiSelectionState::CONNECTION_FAILED;
     requestUpdate();
     return;
