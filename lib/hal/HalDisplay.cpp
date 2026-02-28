@@ -18,7 +18,40 @@ void HalDisplay::drawImage(const uint8_t* imageData, uint16_t x, uint16_t y, uin
 
 void HalDisplay::drawImageTransparent(const uint8_t* imageData, uint16_t x, uint16_t y, uint16_t w, uint16_t h,
                                       bool fromProgmem) const {
-  einkDisplay.drawImageTransparent(imageData, x, y, w, h, fromProgmem);
+  uint8_t* frameBuffer = einkDisplay.getFrameBuffer();
+  if (!frameBuffer || !imageData || w == 0 || h == 0) {
+    return;
+  }
+
+  const uint16_t srcWidthBytes = (w + 7) / 8;
+
+  for (uint16_t row = 0; row < h; row++) {
+    const uint16_t destY = y + row;
+    if (destY >= EInkDisplay::DISPLAY_HEIGHT) {
+      break;
+    }
+
+    const size_t srcRowOffset = static_cast<size_t>(row) * srcWidthBytes;
+    const size_t destRowOffset = static_cast<size_t>(destY) * EInkDisplay::DISPLAY_WIDTH_BYTES;
+
+    for (uint16_t col = 0; col < w; col++) {
+      const uint16_t destX = x + col;
+      if (destX >= EInkDisplay::DISPLAY_WIDTH) {
+        break;
+      }
+
+      const size_t srcByteIndex = srcRowOffset + (col / 8);
+      const uint8_t srcByte = fromProgmem ? pgm_read_byte(&imageData[srcByteIndex]) : imageData[srcByteIndex];
+      const uint8_t srcBit = (srcByte >> (7 - (col % 8))) & 0x01;
+
+      // Icon bitmaps use 1=white (transparent) and 0=black (draw).
+      if (srcBit == 0) {
+        const size_t destByteIndex = destRowOffset + (destX / 8);
+        const uint8_t destBit = 7 - (destX % 8);
+        frameBuffer[destByteIndex] &= ~(1U << destBit);
+      }
+    }
+  }
 }
 
 EInkDisplay::RefreshMode convertRefreshMode(HalDisplay::RefreshMode mode) {

@@ -322,11 +322,23 @@ void KeyboardEntryActivity::render(RenderLock&&) {
 }
 
 void KeyboardEntryActivity::onComplete(std::string text) {
+  if (onCompleteCallback) {
+    onCompleteCallback(text);
+    finish();
+    return;
+  }
+
   setResult(KeyboardResult{std::move(text)});
   finish();
 }
 
 void KeyboardEntryActivity::onCancel() {
+  if (onCancelCallback) {
+    onCancelCallback();
+    finish();
+    return;
+  }
+
   ActivityResult result;
   result.isCancelled = true;
   setResult(std::move(result));
