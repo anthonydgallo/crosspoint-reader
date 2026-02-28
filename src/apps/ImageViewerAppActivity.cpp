@@ -36,55 +36,65 @@ std::string ImageViewerAppActivity::getTempBmpPath() const { return manifest.pat
 
 void ImageViewerAppActivity::scanForImages() {
   imageFiles.clear();
+  constexpr size_t MAX_IMAGES = 600;
+  std::vector<std::string> dirsToScan = {"/"};
 
-  std::string imagesDir = manifest.path + "/images";
+  while (!dirsToScan.empty() && imageFiles.size() < MAX_IMAGES) {
+    const std::string currentDir = dirsToScan.back();
+    dirsToScan.pop_back();
 
-  if (!Storage.exists(imagesDir.c_str())) {
-    LOG_DBG("IMGV", "No images/ subfolder found at %s", imagesDir.c_str());
-    return;
-  }
-
-  auto dir = Storage.open(imagesDir.c_str());
-  if (!dir || !dir.isDirectory()) {
-    if (dir) dir.close();
-    LOG_ERR("IMGV", "Failed to open images directory: %s", imagesDir.c_str());
-    return;
-  }
-
-  dir.rewindDirectory();
-
-  char name[256];
-  for (auto entry = dir.openNextFile(); entry; entry = dir.openNextFile()) {
-    if (entry.isDirectory()) {
-      entry.close();
+    auto dir = Storage.open(currentDir.c_str());
+    if (!dir || !dir.isDirectory()) {
+      if (dir) dir.close();
       continue;
     }
 
-    entry.getName(name, sizeof(name));
+    dir.rewindDirectory();
 
-    // Skip hidden files
-    if (name[0] == '.') {
+    char name[256];
+    for (auto entry = dir.openNextFile(); entry && imageFiles.size() < MAX_IMAGES; entry = dir.openNextFile()) {
+      entry.getName(name, sizeof(name));
+
+      // Skip hidden/system entries
+      if (name[0] == '.' || strcmp(name, "System Volume Information") == 0) {
+        entry.close();
+        continue;
+      }
+
+      std::string fullPath = currentDir;
+      if (fullPath.empty() || fullPath.back() != '/') {
+        fullPath += "/";
+      }
+      fullPath += name;
+
+      if (entry.isDirectory()) {
+        dirsToScan.push_back(fullPath);
+        entry.close();
+        continue;
+      }
+
+      if (hasImageExtension(name)) {
+        ImageFile img;
+        img.path = fullPath;
+        img.name = (fullPath.size() > 1) ? fullPath.substr(1) : fullPath;
+        imageFiles.push_back(std::move(img));
+      }
+
       entry.close();
-      continue;
     }
 
-    if (hasImageExtension(name)) {
-      ImageFile img;
-      img.name = name;
-      img.path = imagesDir + "/" + name;
-      imageFiles.push_back(std::move(img));
-    }
-
-    entry.close();
+    dir.close();
+    yield();
   }
-
-  dir.close();
 
   // Sort alphabetically by name
   std::sort(imageFiles.begin(), imageFiles.end(),
             [](const ImageFile& a, const ImageFile& b) { return a.name < b.name; });
 
-  LOG_DBG("IMGV", "Found %d image(s)", static_cast<int>(imageFiles.size()));
+  LOG_DBG("IMGV", "Found %d image(s) across SD card", static_cast<int>(imageFiles.size()));
+  if (imageFiles.size() >= MAX_IMAGES) {
+    LOG_INF("IMGV", "Image scan stopped at %d entries (cap)", static_cast<int>(MAX_IMAGES));
+  }
 }
 
 void ImageViewerAppActivity::onEnter() {
@@ -180,7 +190,7 @@ void ImageViewerAppActivity::renderList() {
   int contentHeight = pageHeight - contentY - metrics.buttonHintsHeight - metrics.verticalSpacing;
 
   if (imageFiles.empty()) {
-    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2, "No images found in images/ folder");
+    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2, "No images found on SD card");
   } else {
     GUI.drawList(
         renderer, Rect{0, contentY, pageWidth, contentHeight}, static_cast<int>(imageFiles.size()), selectorIndex,

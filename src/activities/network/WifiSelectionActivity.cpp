@@ -33,6 +33,7 @@ void WifiSelectionActivity::onEnter() {
   savePromptSelection = 0;
   forgetPromptSelection = 0;
   autoConnecting = false;
+  lastConnectionStatus = static_cast<int8_t>(WiFi.status());
 
   // Cache MAC address for display
   uint8_t mac[6];
@@ -227,12 +228,15 @@ void WifiSelectionActivity::selectNetwork(const int index) {
 
 void WifiSelectionActivity::attemptConnection() {
   state = autoConnecting ? WifiSelectionState::AUTO_CONNECTING : WifiSelectionState::CONNECTING;
-  connectionStartTime = millis();
   connectedIP.clear();
   connectionError.clear();
   requestUpdate();
 
   WiFi.mode(WIFI_STA);
+  // Clear previous station state to prevent stale WL_CONNECT_FAILED /
+  // WL_NO_SSID_AVAIL from a prior attempt being read as an immediate failure.
+  WiFi.disconnect();
+  delay(50);
 
   // Set hostname so routers show "CrossPoint-Reader-AABBCCDDEEFF" instead of "esp32-XXXXXXXXXXXX"
   String mac = WiFi.macAddress();
@@ -245,6 +249,11 @@ void WifiSelectionActivity::attemptConnection() {
   } else {
     WiFi.begin(selectedSSID.c_str());
   }
+
+  connectionStartTime = millis();
+  lastConnectionStatus = static_cast<int8_t>(WiFi.status());
+  LOG_DBG("WIFI", "Begin connect to '%s' (requiresPass=%d, passLen=%zu, initialStatus=%d)", selectedSSID.c_str(),
+          selectedRequiresPassword ? 1 : 0, enteredPassword.size(), static_cast<int>(lastConnectionStatus));
 }
 
 void WifiSelectionActivity::checkConnectionStatus() {
@@ -253,6 +262,13 @@ void WifiSelectionActivity::checkConnectionStatus() {
   }
 
   const wl_status_t status = WiFi.status();
+  const unsigned long elapsed = millis() - connectionStartTime;
+  if (static_cast<int8_t>(status) != lastConnectionStatus) {
+    LOG_DBG("WIFI", "Connect status changed for '%s': %d -> %d (elapsed=%lu ms)", selectedSSID.c_str(),
+            static_cast<int>(lastConnectionStatus), static_cast<int>(status), elapsed);
+    lastConnectionStatus = static_cast<int8_t>(status);
+  }
+
   bool isWrongPasswordStatus = false;
 #if defined(WL_WRONG_PASSWORD)
   isWrongPasswordStatus = (status == WL_WRONG_PASSWORD);
@@ -290,6 +306,11 @@ void WifiSelectionActivity::checkConnectionStatus() {
   }
 
   if (status == WL_CONNECT_FAILED || status == WL_NO_SSID_AVAIL || isWrongPasswordStatus) {
+    // Give begin() a short grace window so stale status from a previous attempt
+    // doesn't trigger an instant and incorrect "invalid password" message.
+    if (elapsed < FAILURE_STATUS_GRACE_MS) {
+      return;
+    }
     connectionError = tr(STR_ERROR_GENERAL_FAILURE);
     if (status == WL_NO_SSID_AVAIL) {
       connectionError = tr(STR_ERROR_NETWORK_NOT_FOUND);
@@ -303,7 +324,7 @@ void WifiSelectionActivity::checkConnectionStatus() {
   }
 
   // Check for timeout
-  if (millis() - connectionStartTime > CONNECTION_TIMEOUT_MS) {
+  if (elapsed > CONNECTION_TIMEOUT_MS) {
     WiFi.disconnect();
     connectionError = tr(STR_ERROR_CONNECTION_TIMEOUT);
     state = WifiSelectionState::CONNECTION_FAILED;

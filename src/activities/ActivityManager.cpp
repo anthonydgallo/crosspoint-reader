@@ -17,13 +17,14 @@
 #include "art/ArtGalleryActivity.h"
 #include "rosary/RosaryActivity.h"
 #include "apps/AppManifest.h"
+#include "apps/BookHighlightsAppActivity.h"
 #include "apps/CalculatorAppActivity.h"
-#include "apps/MinesweeperAppActivity.h"
 #include "apps/FlashcardAppActivity.h"
+#include "apps/ImageViewerAppActivity.h"
+#include "apps/MinesweeperAppActivity.h"
 #include "apps/RandomQuoteAppActivity.h"
 #include "apps/TextEditorAppActivity.h"
 #include "apps/TextViewerAppActivity.h"
-#include "apps/ImageViewerAppActivity.h"
 
 void ActivityManager::begin() {
   xTaskCreate(&renderTaskTrampoline, "ActivityManagerRender",
@@ -218,6 +219,8 @@ void ActivityManager::goToOpenApp(const AppManifest& app) {
     replaceActivity(std::make_unique<TextViewerAppActivity>(renderer, mappedInput, app));
   } else if (app.type == "randomquote") {
     replaceActivity(std::make_unique<RandomQuoteAppActivity>(renderer, mappedInput, app));
+  } else if (app.type == "bookhighlights") {
+    replaceActivity(std::make_unique<BookHighlightsAppActivity>(renderer, mappedInput, app));
   } else if (app.type == "texteditor") {
     replaceActivity(std::make_unique<TextEditorAppActivity>(renderer, mappedInput, app));
   } else if (app.type == "flashcard") {

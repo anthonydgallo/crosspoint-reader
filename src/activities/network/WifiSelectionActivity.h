@@ -78,7 +78,11 @@ class WifiSelectionActivity final : public Activity {
 
   // Connection timeout
   static constexpr unsigned long CONNECTION_TIMEOUT_MS = 15000;
+  // WiFi status can briefly report stale failure codes right after begin();
+  // avoid classifying those as bad credentials too early.
+  static constexpr unsigned long FAILURE_STATUS_GRACE_MS = 1200;
   unsigned long connectionStartTime = 0;
+  int8_t lastConnectionStatus = 0;
 
   void renderNetworkList() const;
   void renderPasswordEntry() const;

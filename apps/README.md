@@ -88,12 +88,38 @@ Manifest example:
 - Optional `Reference|Quote text` format per line
 - Empty lines and lines starting with `#` are ignored
 
+### Book Highlights App (Readwise CSV)
+
+The `bookhighlights` type streams random highlights from CSV files inside `/book-highlights` on the SD card.
+
+Manifest example:
+
+```json
+{
+  "name": "Book Highlights",
+  "type": "bookhighlights",
+  "version": "1.0"
+}
+```
+
+CSV requirements:
+- Put one or more `.csv` files in `/book-highlights`
+- The parser reads the first three columns as: `Highlight`, `Book Title`, `Book Author`
+- Quoted CSV fields are supported, including commas/newlines inside quotes
+- Large CSV files are streamed record-by-record (the whole file is not loaded into memory)
+
+Controls:
+- `Confirm` or `Down/Right`: load a new random highlight
+- `Up/Left`: show the previous highlight from this session
+- `Back`: return home
+
 ### Built-in App Types
 
 Some app types have specialized UI built into the firmware:
 
 - `rosary` - Holy Rosary prayer guide with bead visualization and decade tracking
 - `randomquote` - Full-screen random quote viewer
+- `bookhighlights` - Random Readwise CSV highlight viewer from `/book-highlights`
 
 These types only require a minimal `app.json` manifest to activate them.
 

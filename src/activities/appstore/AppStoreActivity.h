@@ -49,6 +49,9 @@ class AppStoreActivity final : public Activity {
   std::string completionMessage;
   size_t downloadProgress = 0;
   size_t downloadTotal = 0;
+  size_t batchInstallProgress = 0;
+  size_t batchInstallTotal = 0;
+  bool progressByFileCount = false;
   int lastRenderedPercent = -1;  // Track last rendered percentage for e-ink refresh throttling
 
   // When true, fetchAppList() runs on the next loop() iteration instead of
@@ -66,6 +69,6 @@ class AppStoreActivity final : public Activity {
   std::vector<size_t> selectedInstallableIndexes() const;
   std::vector<size_t> allInstallableIndexes() const;
   void focusFirstInstallable();
-  bool downloadFile(const std::string& url, const std::string& destPath);
+  bool downloadFile(const std::string& url, const std::string& destPath, bool trackByteProgress);
   bool preventAutoSleep() override { return true; }
 };

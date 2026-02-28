@@ -20,8 +20,8 @@
 #include "util/StringUtils.h"
 
 int HomeActivity::getMenuItemCount() const {
-  // My Library, Recents, [OPDS], App Store, Apps, File transfer, Settings
-  int count = 6;  // My Library, Recents, App Store, Apps, File transfer, Settings
+  // My Library, Recents, [OPDS], Apps, App Store, File transfer, Settings
+  int count = 6;  // My Library, Recents, Apps, App Store, File transfer, Settings
   if (!recentBooks.empty()) {
     count += recentBooks.size();
   }
@@ -188,15 +188,15 @@ void HomeActivity::loop() {
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
     // Calculate dynamic indices based on which options are available
-    // Menu layout: My Library, Recents, [OPDS], App Store, Apps, File Transfer, Settings
+    // Menu layout: My Library, Recents, [OPDS], Apps, App Store, File Transfer, Settings
     int menuSelectedIndex = selectorIndex - static_cast<int>(recentBooks.size());
 
     int idx = 0;
     const int myLibraryIdx = idx++;
     const int recentsIdx = idx++;
     const int opdsLibraryIdx = hasOpdsUrl ? idx++ : -1;
-    const int appStoreIdx = idx++;
     const int appsIdx = idx++;
+    const int appStoreIdx = idx++;
     const int fileTransferIdx = idx++;
     const int settingsIdx = idx;
 
@@ -208,10 +208,10 @@ void HomeActivity::loop() {
       onRecentsOpen();
     } else if (menuSelectedIndex == opdsLibraryIdx) {
       onOpdsBrowserOpen();
-    } else if (menuSelectedIndex == appStoreIdx) {
-      onAppStoreOpen();
     } else if (menuSelectedIndex == appsIdx) {
       onAppsMenuOpen();
+    } else if (menuSelectedIndex == appStoreIdx) {
+      onAppStoreOpen();
     } else if (menuSelectedIndex == fileTransferIdx) {
       onFileTransferOpen();
     } else if (menuSelectedIndex == settingsIdx) {
@@ -235,7 +235,7 @@ void HomeActivity::render(RenderLock&&) {
                           std::bind(&HomeActivity::storeCoverBuffer, this));
 
   // Build menu items dynamically
-  // Menu order: My Library, Recents, [OPDS], App Store, Apps, File Transfer, Settings
+  // Menu order: My Library, Recents, [OPDS], Apps, App Store, File Transfer, Settings
   std::vector<const char*> menuItems = {tr(STR_BROWSE_FILES), tr(STR_MENU_RECENT_BOOKS)};
   std::vector<UIIcon> menuIcons = {Folder, Recent};
 
@@ -244,10 +244,10 @@ void HomeActivity::render(RenderLock&&) {
     menuIcons.push_back(Library);
   }
 
-  menuItems.push_back(tr(STR_APP_STORE));
-  menuIcons.push_back(Library);
   menuItems.push_back(tr(STR_APPS));
   menuIcons.push_back(Folder);
+  menuItems.push_back(tr(STR_APP_STORE));
+  menuIcons.push_back(Library);
   menuItems.push_back(tr(STR_FILE_TRANSFER));
   menuIcons.push_back(Transfer);
   menuItems.push_back(tr(STR_SETTINGS_TITLE));

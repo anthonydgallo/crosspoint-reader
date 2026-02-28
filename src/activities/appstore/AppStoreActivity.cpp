@@ -72,6 +72,9 @@ void AppStoreActivity::onEnter() {
   selectorIndex = 0;
   errorMessage.clear();
   completionMessage.clear();
+  batchInstallProgress = 0;
+  batchInstallTotal = 0;
+  progressByFileCount = false;
   fetchPending = false;
   statusMessage = tr(STR_CHECKING_WIFI);
   requestUpdate();
@@ -86,6 +89,9 @@ void AppStoreActivity::onExit() {
   apps.clear();
   selectedApps.clear();
   completionMessage.clear();
+  batchInstallProgress = 0;
+  batchInstallTotal = 0;
+  progressByFileCount = false;
 }
 
 void AppStoreActivity::loop() {
@@ -220,13 +226,20 @@ void AppStoreActivity::render(RenderLock&&) {
   if (state == StoreState::DOWNLOADING) {
     renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 - 40, tr(STR_INSTALLING_APP));
     renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 - 10, statusMessage.c_str());
+    const int barWidth = pageWidth - 100;
+    constexpr int barHeight = 20;
+    constexpr int barX = 50;
+    const int barY = pageHeight / 2 + 20;
+    size_t barProgress = 0;
+    size_t barTotal = 1;  // Always render a visible progress bar while downloading/preparing.
     if (downloadTotal > 0) {
-      const int barWidth = pageWidth - 100;
-      constexpr int barHeight = 20;
-      constexpr int barX = 50;
-      const int barY = pageHeight / 2 + 20;
-      GUI.drawProgressBar(renderer, Rect{barX, barY, barWidth, barHeight}, downloadProgress, downloadTotal);
+      barProgress = downloadProgress;
+      barTotal = downloadTotal;
+    } else if (batchInstallTotal > 1) {
+      barProgress = batchInstallProgress;
+      barTotal = batchInstallTotal;
     }
+    GUI.drawProgressBar(renderer, Rect{barX, barY, barWidth, barHeight}, barProgress, barTotal);
     renderer.displayBuffer();
     return;
   }
@@ -407,6 +420,9 @@ void AppStoreActivity::fetchAppList() {
 
   selectedApps.assign(apps.size(), false);
   completionMessage.clear();
+  batchInstallProgress = 0;
+  batchInstallTotal = 0;
+  progressByFileCount = false;
   state = StoreState::BROWSING;
   focusFirstInstallable();
   requestUpdate();
@@ -414,6 +430,16 @@ void AppStoreActivity::fetchAppList() {
 
 void AppStoreActivity::installApps(const std::vector<size_t>& appIndexes) {
   if (appIndexes.empty()) return;
+
+  batchInstallTotal = 0;
+  for (const size_t appIndex : appIndexes) {
+    if (appIndex < apps.size() && !apps[appIndex].installed) {
+      batchInstallTotal++;
+    }
+  }
+  batchInstallProgress = 0;
+
+  if (batchInstallTotal == 0) return;
 
   size_t completedInstallCount = 0;
   completionMessage.clear();
@@ -426,7 +452,7 @@ void AppStoreActivity::installApps(const std::vector<size_t>& appIndexes) {
 
     if (!hasSufficientTlsMemory("bulk install")) {
       state = StoreState::ERROR;
-      errorMessage = tr(STR_INSTALL_FAILED);
+      errorMessage = std::string(tr(STR_INSTALL_FAILED)) + ": " + app.displayName;
       requestUpdate(true);
       return;
     }
@@ -440,6 +466,7 @@ void AppStoreActivity::installApps(const std::vector<size_t>& appIndexes) {
       selectedApps[appIndex] = false;
     }
     completedInstallCount++;
+    batchInstallProgress = completedInstallCount;
     yield();
     delay(INTER_APP_COOLDOWN_MS);
   }
@@ -461,6 +488,7 @@ bool AppStoreActivity::installSingleApp(RemoteApp& app) {
   statusMessage = app.displayName;
   downloadProgress = 0;
   downloadTotal = 0;
+  progressByFileCount = false;
   lastRenderedPercent = -1;
   requestUpdate(true);
 
@@ -468,7 +496,7 @@ bool AppStoreActivity::installSingleApp(RemoteApp& app) {
           ESP.getMaxAllocHeap());
   if (!hasSufficientTlsMemory("app install")) {
     state = StoreState::ERROR;
-    errorMessage = tr(STR_INSTALL_FAILED);
+    errorMessage = std::string(tr(STR_INSTALL_FAILED)) + ": " + app.displayName;
     requestUpdate(true);
     return false;
   }
@@ -489,7 +517,7 @@ bool AppStoreActivity::installSingleApp(RemoteApp& app) {
     std::string response;
     if (!HttpDownloader::fetchUrl(apiUrl, response)) {
       state = StoreState::ERROR;
-      errorMessage = tr(STR_INSTALL_FAILED);
+      errorMessage = std::string(tr(STR_INSTALL_FAILED)) + ": " + app.displayName;
       requestUpdate();
       return false;
     }
@@ -499,7 +527,7 @@ bool AppStoreActivity::installSingleApp(RemoteApp& app) {
     if (error || !doc.is<JsonArray>()) {
       LOG_ERR("STORE", "Failed to parse app file list");
       state = StoreState::ERROR;
-      errorMessage = tr(STR_INSTALL_FAILED);
+      errorMessage = std::string(tr(STR_INSTALL_FAILED)) + ": " + app.displayName;
       requestUpdate();
       return false;
     }
@@ -526,12 +554,13 @@ bool AppStoreActivity::installSingleApp(RemoteApp& app) {
   if (files.empty()) {
     LOG_ERR("STORE", "No files found in app folder");
     state = StoreState::ERROR;
-    errorMessage = tr(STR_INSTALL_FAILED);
+    errorMessage = std::string(tr(STR_INSTALL_FAILED)) + ": " + app.displayName;
     requestUpdate();
     return false;
   }
 
-  downloadTotal = totalSize;
+  progressByFileCount = (totalSize == 0);
+  downloadTotal = progressByFileCount ? files.size() : totalSize;
   downloadProgress = 0;
   requestUpdate(true);
 
@@ -552,21 +581,21 @@ bool AppStoreActivity::installSingleApp(RemoteApp& app) {
 
     if (!hasSufficientTlsMemory("file download")) {
       state = StoreState::ERROR;
-      errorMessage = tr(STR_INSTALL_FAILED);
+      errorMessage = std::string(tr(STR_INSTALL_FAILED)) + ": " + app.displayName;
       requestUpdate(true);
       return false;
     }
 
-    if (!downloadFile(file.downloadUrl, destPath)) {
+    if (!downloadFile(file.downloadUrl, destPath, !progressByFileCount)) {
       // Clean up on failure
       LOG_ERR("STORE", "Failed to download: %s", file.name.c_str());
       state = StoreState::ERROR;
-      errorMessage = tr(STR_INSTALL_FAILED);
+      errorMessage = std::string(tr(STR_INSTALL_FAILED)) + ": " + app.displayName;
       requestUpdate();
       return false;
     }
 
-    downloadedSoFar += file.size;
+    downloadedSoFar += progressByFileCount ? 1 : file.size;
     downloadProgress = downloadedSoFar;
 
     // Refresh display at meaningful intervals for e-ink
@@ -621,24 +650,29 @@ void AppStoreActivity::focusFirstInstallable() {
   selectorIndex = 0;
 }
 
-bool AppStoreActivity::downloadFile(const std::string& url, const std::string& destPath) {
+bool AppStoreActivity::downloadFile(const std::string& url, const std::string& destPath, const bool trackByteProgress) {
   const size_t prevProgress = downloadProgress;
 
-  auto result = HttpDownloader::downloadToFile(url, destPath, [this, prevProgress](size_t downloaded, size_t /*total*/) {
-    // Update overall progress based on this file's contribution
-    downloadProgress = prevProgress + downloaded;
+  auto result = HttpDownloader::downloadToFile(
+      url, destPath, [this, prevProgress, trackByteProgress](size_t downloaded, size_t /*total*/) {
+        if (!trackByteProgress) {
+          return;
+        }
 
-    // Throttle e-ink refreshes: only refresh every 10% of total progress
-    if (downloadTotal > 0) {
-      int currentPercent = static_cast<int>((static_cast<uint64_t>(downloadProgress) * 100) / downloadTotal);
-      int currentPercent10 = currentPercent / 10;
-      int lastPercent10 = lastRenderedPercent / 10;
-      if (currentPercent10 > lastPercent10) {
-        lastRenderedPercent = currentPercent;
-        requestUpdate(true);
-      }
-    }
-  });
+        // Update overall progress based on this file's contribution
+        downloadProgress = prevProgress + downloaded;
+
+        // Throttle e-ink refreshes: only refresh every 10% of total progress
+        if (downloadTotal > 0) {
+          int currentPercent = static_cast<int>((static_cast<uint64_t>(downloadProgress) * 100) / downloadTotal);
+          int currentPercent10 = currentPercent / 10;
+          int lastPercent10 = lastRenderedPercent / 10;
+          if (currentPercent10 > lastPercent10) {
+            lastRenderedPercent = currentPercent;
+            requestUpdate(true);
+          }
+        }
+      });
 
   return result == HttpDownloader::OK;
 }

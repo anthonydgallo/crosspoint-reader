@@ -8,7 +8,7 @@
 #include "util/ButtonNavigator.h"
 
 // Image viewer app activity for "imageviewer" type apps.
-// Scans the app's "images" subfolder for .png, .jpg, .jpeg, and .heic files
+// Scans the SD card for .png, .jpg, .jpeg, and .heic files
 // and displays them full-screen on the e-ink display.
 class ImageViewerAppActivity final : public Activity {
   ButtonNavigator buttonNavigator;

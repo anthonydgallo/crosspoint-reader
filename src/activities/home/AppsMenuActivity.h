@@ -10,11 +10,21 @@
 
 class AppsMenuActivity final : public Activity {
  private:
+  static constexpr unsigned long DELETE_ARM_MS = 1000;
+
   ButtonNavigator buttonNavigator;
 
   int selectorIndex = 0;
 
   std::vector<AppManifest> loadedApps;
+  bool deleteArmed = false;
+  int deleteArmedIndex = -1;
+  bool skipNextConfirmRelease = false;
+  std::string deleteStatus;
+
+  void clearDeleteMode();
+  void promptDeleteSelectedApp();
+  void deleteAppAtIndex(size_t appIndex);
 
  public:
   explicit AppsMenuActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
