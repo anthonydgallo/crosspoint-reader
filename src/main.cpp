@@ -1,6 +1,5 @@
 #include <Arduino.h>
 #include <Epub.h>
-#include <FontDecompressor.h>
 #include <GfxRenderer.h>
 #include <HalDisplay.h>
 #include <HalGPIO.h>
@@ -13,24 +12,36 @@
 
 #include <cstring>
 
+#include "Battery.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "KOReaderCredentialStore.h"
 #include "MappedInputManager.h"
 #include "RecentBooksStore.h"
-#include "activities/Activity.h"
-#include "activities/ActivityManager.h"
+#include "activities/boot_sleep/BootActivity.h"
+#include "activities/boot_sleep/SleepActivity.h"
+#include "activities/browser/OpdsBookBrowserActivity.h"
+#include "activities/home/HomeActivity.h"
+#include "activities/home/MyLibraryActivity.h"
+#include "activities/home/RecentBooksActivity.h"
+#include "activities/network/CrossPointWebServerActivity.h"
+#include "activities/reader/ReaderActivity.h"
+#include "activities/rosary/RosaryActivity.h"
+#include "activities/appstore/AppStoreActivity.h"
+#include "activities/settings/SettingsActivity.h"
+#include "activities/util/FullScreenMessageActivity.h"
+#include "apps/AppManifest.h"
+#include "apps/RandomQuoteAppActivity.h"
+#include "apps/TextViewerAppActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "util/ButtonNavigator.h"
-#include "util/ScreenshotUtil.h"
 
 HalDisplay display;
 HalGPIO gpio;
 MappedInputManager mappedInputManager(gpio);
 GfxRenderer renderer(display);
-ActivityManager activityManager(renderer, mappedInputManager);
-FontDecompressor fontDecompressor;
+Activity* currentActivity;
 
 // Fonts
 EpdFont bookerly14RegularFont(&bookerly_14_regular);
@@ -101,6 +112,19 @@ EpdFontFamily ui12FontFamily(&ui12RegularFont, &ui12BoldFont);
 unsigned long t1 = 0;
 unsigned long t2 = 0;
 
+void exitActivity() {
+  if (currentActivity) {
+    currentActivity->onExit();
+    delete currentActivity;
+    currentActivity = nullptr;
+  }
+}
+
+void enterNewActivity(Activity* activity) {
+  currentActivity = activity;
+  currentActivity->onEnter();
+}
+
 // Verify power button press duration on wake-up from deep sleep
 // Pre-condition: isWakeupByPowerButton() == true
 void verifyPowerButtonDuration() {
@@ -155,11 +179,10 @@ void waitForPowerRelease() {
 
 // Enter deep sleep mode
 void enterDeepSleep() {
-  HalPowerManager::Lock powerLock;  // Ensure we are at normal CPU frequency for sleep preparation
-  APP_STATE.lastSleepFromReader = activityManager.isReaderActivity();
+  APP_STATE.lastSleepFromReader = currentActivity && currentActivity->isReaderActivity();
   APP_STATE.saveToFile();
-
-  activityManager.goToSleep();
+  exitActivity();
+  enterNewActivity(new SleepActivity(renderer, mappedInputManager));
 
   display.deepSleep();
   LOG_DBG("MAIN", "Power button press calibration value: %lu ms", t2 - t1);
@@ -168,17 +191,75 @@ void enterDeepSleep() {
   powerManager.startDeepSleep(gpio);
 }
 
+void onGoHome();
+void onGoToMyLibraryWithPath(const std::string& path);
+void onGoToRecentBooks();
+void onGoToReader(const std::string& initialEpubPath) {
+  exitActivity();
+  enterNewActivity(
+      new ReaderActivity(renderer, mappedInputManager, initialEpubPath, onGoHome, onGoToMyLibraryWithPath));
+}
+
+void onGoToFileTransfer() {
+  exitActivity();
+  enterNewActivity(new CrossPointWebServerActivity(renderer, mappedInputManager, onGoHome));
+}
+
+void onGoToSettings() {
+  exitActivity();
+  enterNewActivity(new SettingsActivity(renderer, mappedInputManager, onGoHome));
+}
+
+void onGoToMyLibrary() {
+  exitActivity();
+  enterNewActivity(new MyLibraryActivity(renderer, mappedInputManager, onGoHome, onGoToReader));
+}
+
+void onGoToRecentBooks() {
+  exitActivity();
+  enterNewActivity(new RecentBooksActivity(renderer, mappedInputManager, onGoHome, onGoToReader));
+}
+
+void onGoToMyLibraryWithPath(const std::string& path) {
+  exitActivity();
+  enterNewActivity(new MyLibraryActivity(renderer, mappedInputManager, onGoHome, onGoToReader, path));
+}
+
+void onGoToBrowser() {
+  exitActivity();
+  enterNewActivity(new OpdsBookBrowserActivity(renderer, mappedInputManager, onGoHome));
+}
+
+void onOpenApp(const AppManifest& app) {
+  exitActivity();
+
+  if (app.type == "rosary") {
+    enterNewActivity(new RosaryActivity(renderer, mappedInputManager, onGoHome));
+  } else if (app.type == "textviewer") {
+    enterNewActivity(new TextViewerAppActivity(renderer, mappedInputManager, app, onGoHome));
+  } else if (app.type == "randomquote") {
+    enterNewActivity(new RandomQuoteAppActivity(renderer, mappedInputManager, app, onGoHome));
+  } else {
+    LOG_ERR("MAIN", "Unknown app type: %s", app.type.c_str());
+    onGoHome();
+  }
+}
+
+void onGoToAppStore() {
+  exitActivity();
+  enterNewActivity(new AppStoreActivity(renderer, mappedInputManager, onGoHome));
+}
+
+void onGoHome() {
+  exitActivity();
+  enterNewActivity(new HomeActivity(renderer, mappedInputManager, onGoToReader, onGoToMyLibrary, onGoToRecentBooks,
+                                    onGoToSettings, onGoToFileTransfer, onGoToBrowser, onOpenApp, onGoToAppStore));
+}
+
 void setupDisplayAndFonts() {
   display.begin();
   renderer.begin();
-  activityManager.begin();
   LOG_DBG("MAIN", "Display initialized");
-
-  // Initialize font decompressor for compressed reader fonts
-  if (!fontDecompressor.init()) {
-    LOG_ERR("MAIN", "Font decompressor init failed");
-  }
-  renderer.setFontDecompressor(&fontDecompressor);
   renderer.insertFont(BOOKERLY_14_FONT_ID, bookerly14FontFamily);
 #ifndef OMIT_FONTS
   renderer.insertFont(BOOKERLY_12_FONT_ID, bookerly12FontFamily);
@@ -221,7 +302,8 @@ void setup() {
   if (!Storage.begin()) {
     LOG_ERR("MAIN", "SD card initialization failed");
     setupDisplayAndFonts();
-    activityManager.goToFullScreenMessage("SD card error", EpdFontFamily::BOLD);
+    exitActivity();
+    enterNewActivity(new FullScreenMessageActivity(renderer, mappedInputManager, "SD card error", EpdFontFamily::BOLD));
     return;
   }
 
@@ -254,7 +336,8 @@ void setup() {
 
   setupDisplayAndFonts();
 
-  activityManager.goToBoot();
+  exitActivity();
+  enterNewActivity(new BootActivity(renderer, mappedInputManager));
 
   APP_STATE.loadFromFile();
   RECENT_BOOKS.loadFromFile();
@@ -264,9 +347,9 @@ void setup() {
   if (APP_STATE.openEpubPath.empty() || !APP_STATE.lastSleepFromReader ||
       mappedInputManager.isPressed(MappedInputManager::Button::Back) || APP_STATE.readerActivityLoadCount > 0) {
     if (SETTINGS.uiTheme == CrossPointSettings::UI_THEME::FILE_BROWSER) {
-      activityManager.goToMyLibrary();
+      onGoToMyLibrary();
     } else {
-      activityManager.goHome();
+      onGoHome();
     }
   } else {
     // Clear app state to avoid getting into a boot loop if the epub doesn't load
@@ -274,7 +357,7 @@ void setup() {
     APP_STATE.openEpubPath = "";
     APP_STATE.readerActivityLoadCount++;
     APP_STATE.saveToFile();
-    activityManager.goToReader(path);
+    onGoToReader(path);
   }
 
   // Ensure we're not still holding the power button before leaving setup
@@ -291,8 +374,8 @@ void loop() {
   renderer.setFadingFix(SETTINGS.fadingFix);
 
   if (Serial && millis() - lastMemPrint >= 10000) {
-    LOG_INF("MEM", "Free: %d bytes, Total: %d bytes, Min Free: %d bytes, MaxAlloc: %d bytes", ESP.getFreeHeap(),
-            ESP.getHeapSize(), ESP.getMinFreeHeap(), ESP.getMaxAllocHeap());
+    LOG_INF("MEM", "Free: %d bytes, Total: %d bytes, Min Free: %d bytes", ESP.getFreeHeap(), ESP.getHeapSize(),
+            ESP.getMinFreeHeap());
     lastMemPrint = millis();
   }
 
@@ -314,23 +397,9 @@ void loop() {
 
   // Check for any user activity (button press or release) or active background work
   static unsigned long lastActivityTime = millis();
-  if (gpio.wasAnyPressed() || gpio.wasAnyReleased() || activityManager.preventAutoSleep()) {
+  if (gpio.wasAnyPressed() || gpio.wasAnyReleased() || (currentActivity && currentActivity->preventAutoSleep())) {
     lastActivityTime = millis();         // Reset inactivity timer
     powerManager.setPowerSaving(false);  // Restore normal CPU frequency on user activity
-  }
-
-  static bool screenshotButtonsReleased = true;
-  if (gpio.isPressed(HalGPIO::BTN_POWER) && gpio.isPressed(HalGPIO::BTN_DOWN)) {
-    if (screenshotButtonsReleased) {
-      screenshotButtonsReleased = false;
-      {
-        RenderLock lock;
-        ScreenshotUtil::takeScreenshot(renderer);
-      }
-    }
-    return;
-  } else {
-    screenshotButtonsReleased = true;
   }
 
   const unsigned long sleepTimeoutMs = SETTINGS.getSleepTimeoutMs();
@@ -342,17 +411,15 @@ void loop() {
   }
 
   if (gpio.isPressed(HalGPIO::BTN_POWER) && gpio.getHeldTime() > SETTINGS.getPowerButtonDuration()) {
-    // If the screenshot combination is potentially being pressed, don't sleep
-    if (gpio.isPressed(HalGPIO::BTN_DOWN)) {
-      return;
-    }
     enterDeepSleep();
     // This should never be hit as `enterDeepSleep` calls esp_deep_sleep_start
     return;
   }
 
   const unsigned long activityStartTime = millis();
-  activityManager.loop();
+  if (currentActivity) {
+    currentActivity->loop();
+  }
   const unsigned long activityDuration = millis() - activityStartTime;
 
   const unsigned long loopDuration = millis() - loopStartTime;
@@ -366,7 +433,7 @@ void loop() {
   // Add delay at the end of the loop to prevent tight spinning
   // When an activity requests skip loop delay (e.g., webserver running), use yield() for faster response
   // Otherwise, use longer delay to save power
-  if (activityManager.skipLoopDelay()) {
+  if (currentActivity && currentActivity->skipLoopDelay()) {
     powerManager.setPowerSaving(false);  // Make sure we're at full performance when skipLoopDelay is requested
     yield();                             // Give FreeRTOS a chance to run tasks, but return immediately
   } else {
