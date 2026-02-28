@@ -178,7 +178,7 @@ void TextViewerAppActivity::wrapText(const char* text, int fontId, int maxWidth)
   }
 }
 
-void TextViewerAppActivity::render(Activity::RenderLock&&) {
+void TextViewerAppActivity::render(RenderLock&&) {
   if (showingText) {
     renderText();
   } else {

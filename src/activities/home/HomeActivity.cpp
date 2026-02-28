@@ -117,7 +117,7 @@ void HomeActivity::onEnter() {
 
   selectorIndex = 0;
 
-  auto metrics = UITheme::getInstance().getMetrics();
+  const auto& metrics = UITheme::getInstance().getMetrics();
   loadRecentBooks(metrics.homeRecentBooksCount);
 
   // Trigger first update
@@ -220,8 +220,8 @@ void HomeActivity::loop() {
   }
 }
 
-void HomeActivity::render(Activity::RenderLock&&) {
-  auto metrics = UITheme::getInstance().getMetrics();
+void HomeActivity::render(RenderLock&&) {
+  const auto& metrics = UITheme::getInstance().getMetrics();
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
 
@@ -275,3 +275,19 @@ void HomeActivity::render(Activity::RenderLock&&) {
     loadRecentCovers(metrics.homeCoverHeight);
   }
 }
+
+void HomeActivity::onSelectBook(const std::string& path) { activityManager.goToReader(path); }
+
+void HomeActivity::onMyLibraryOpen() { activityManager.goToMyLibrary(); }
+
+void HomeActivity::onRecentsOpen() { activityManager.goToRecentBooks(); }
+
+void HomeActivity::onSettingsOpen() { activityManager.goToSettings(); }
+
+void HomeActivity::onFileTransferOpen() { activityManager.goToFileTransfer(); }
+
+void HomeActivity::onOpdsBrowserOpen() { activityManager.goToBrowser(); }
+
+void HomeActivity::onAppsMenuOpen() { activityManager.goToAppsMenu(); }
+
+void HomeActivity::onAppStoreOpen() { activityManager.goToAppStore(); }

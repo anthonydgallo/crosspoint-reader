@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <functional>
 #include <string>
 
 #include "AppManifest.h"
@@ -52,7 +51,6 @@ class MinesweeperAppActivity final : public Activity {
   Stats stats;
 
   const AppManifest manifest;
-  const std::function<void()> onGoHome;
 
   void resetGame();
   void placeMines(int safeRow, int safeCol);
@@ -79,11 +77,11 @@ class MinesweeperAppActivity final : public Activity {
 
  public:
   explicit MinesweeperAppActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
-                                  const AppManifest& manifest, const std::function<void()>& onGoHome)
-      : Activity("Minesweeper", renderer, mappedInput), manifest(manifest), onGoHome(onGoHome) {}
+                                  const AppManifest& manifest)
+      : Activity("Minesweeper", renderer, mappedInput), manifest(manifest) {}
 
   void onEnter() override;
   void onExit() override;
   void loop() override;
-  void render(Activity::RenderLock&&) override;
+  void render(RenderLock&&) override;
 };

@@ -26,7 +26,7 @@ constexpr size_t MIN_HEAP_FOR_TLS = 60000;
 }  // namespace
 
 void AppStoreActivity::onEnter() {
-  ActivityWithSubactivity::onEnter();
+  Activity::onEnter();
 
   state = StoreState::CHECK_WIFI;
   apps.clear();
@@ -40,18 +40,13 @@ void AppStoreActivity::onEnter() {
 }
 
 void AppStoreActivity::onExit() {
-  ActivityWithSubactivity::onExit();
+  Activity::onExit();
 
   WiFi.mode(WIFI_OFF);
   apps.clear();
 }
 
 void AppStoreActivity::loop() {
-  if (state == StoreState::WIFI_SELECTION) {
-    ActivityWithSubactivity::loop();
-    return;
-  }
-
   if (state == StoreState::ERROR) {
     if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
       if (WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0)) {
@@ -129,7 +124,7 @@ void AppStoreActivity::loop() {
   }
 }
 
-void AppStoreActivity::render(Activity::RenderLock&&) {
+void AppStoreActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
   const auto pageWidth = renderer.getScreenWidth();
@@ -487,27 +482,19 @@ void AppStoreActivity::checkAndConnectWifi() {
 }
 
 void AppStoreActivity::launchWifiSelection() {
-  state = StoreState::WIFI_SELECTION;
-  requestUpdate();
-
-  enterNewActivity(new WifiSelectionActivity(renderer, mappedInput,
-                                             [this](const bool connected) { onWifiSelectionComplete(connected); }));
+  startActivityForResult(std::make_unique<WifiSelectionActivity>(renderer, mappedInput),
+                         [this](const ActivityResult& result) { onWifiSelectionComplete(!result.isCancelled); });
 }
 
 void AppStoreActivity::onWifiSelectionComplete(const bool connected) {
-  exitActivity();
-
   if (connected) {
     LOG_DBG("STORE", "WiFi connected, deferring app list fetch to loop (free heap: %d)", ESP.getFreeHeap());
     state = StoreState::LOADING;
     statusMessage = tr(STR_FETCHING_APPS);
-    // CRITICAL: Do NOT call fetchAppList() here.  This callback fires from
-    // deep inside the WifiSelectionActivity call chain:
-    //   main loop → AppStore::loop → ActivityWithSubactivity::loop →
-    //   WifiSelection::loop → checkConnectionStatus → onComplete callback →
-    //   here.
+    // CRITICAL: Do NOT call fetchAppList() here.  This result handler fires
+    // from the ActivityManager after the WifiSelectionActivity finishes.
     // Adding HTTPS/TLS operations (which need several KB of stack for mbedTLS)
-    // on top of this deep chain overflows the 8 KB main-task stack on ESP32-C3.
+    // may overflow the stack on ESP32-C3.
     // Setting fetchPending defers the work to the next loop() iteration where
     // the call stack is shallow: main loop → AppStore::loop → fetchAppList.
     fetchPending = true;

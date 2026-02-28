@@ -20,14 +20,13 @@ class HomeActivity final : public Activity {
   bool coverBufferStored = false;  // Track if cover buffer is stored
   uint8_t* coverBuffer = nullptr;  // HomeActivity's own buffer for cover image
   std::vector<RecentBook> recentBooks;
-  const std::function<void(const std::string& path)> onSelectBook;
-  const std::function<void()> onMyLibraryOpen;
-  const std::function<void()> onRecentsOpen;
-  const std::function<void()> onSettingsOpen;
-  const std::function<void()> onFileTransferOpen;
-  const std::function<void()> onOpdsBrowserOpen;
-  const std::function<void()> onAppsMenuOpen;
-  const std::function<void()> onAppStoreOpen;
+  void onMyLibraryOpen();
+  void onRecentsOpen();
+  void onSettingsOpen();
+  void onFileTransferOpen();
+  void onOpdsBrowserOpen();
+  void onAppsMenuOpen();
+  void onAppStoreOpen();
 
   int getMenuItemCount() const;
   bool storeCoverBuffer();    // Store frame buffer for cover image
@@ -37,24 +36,10 @@ class HomeActivity final : public Activity {
   void loadRecentCovers(int coverHeight);
 
  public:
-  explicit HomeActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
-                        const std::function<void(const std::string& path)>& onSelectBook,
-                        const std::function<void()>& onMyLibraryOpen, const std::function<void()>& onRecentsOpen,
-                        const std::function<void()>& onSettingsOpen, const std::function<void()>& onFileTransferOpen,
-                        const std::function<void()>& onOpdsBrowserOpen,
-                        const std::function<void()>& onAppsMenuOpen,
-                        const std::function<void()>& onAppStoreOpen)
-      : Activity("Home", renderer, mappedInput),
-        onSelectBook(onSelectBook),
-        onMyLibraryOpen(onMyLibraryOpen),
-        onRecentsOpen(onRecentsOpen),
-        onSettingsOpen(onSettingsOpen),
-        onFileTransferOpen(onFileTransferOpen),
-        onOpdsBrowserOpen(onOpdsBrowserOpen),
-        onAppsMenuOpen(onAppsMenuOpen),
-        onAppStoreOpen(onAppStoreOpen) {}
+  explicit HomeActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
+      : Activity("Home", renderer, mappedInput) {}
   void onEnter() override;
   void onExit() override;
   void loop() override;
-  void render(Activity::RenderLock&&) override;
+  void render(RenderLock&&) override;
 };

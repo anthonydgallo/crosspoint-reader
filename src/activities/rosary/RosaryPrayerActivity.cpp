@@ -8,41 +8,20 @@
 #include "components/UITheme.h"
 #include "fontIds.h"
 
-void RosaryPrayerActivity::taskTrampoline(void* param) {
-  auto* self = static_cast<RosaryPrayerActivity*>(param);
-  self->displayTaskLoop();
-}
-
 void RosaryPrayerActivity::onEnter() {
   Activity::onEnter();
-  renderingMutex = xSemaphoreCreateMutex();
   currentStep = 0;
-  updateRequired = true;
-
-  xTaskCreate(&RosaryPrayerActivity::taskTrampoline, "RosaryPrayerTask",
-              4096,               // Stack size
-              this,               // Parameters
-              1,                  // Priority
-              &displayTaskHandle  // Task handle
-  );
+  requestUpdate();
 }
 
 void RosaryPrayerActivity::onExit() {
   Activity::onExit();
-
-  xSemaphoreTake(renderingMutex, portMAX_DELAY);
-  if (displayTaskHandle) {
-    vTaskDelete(displayTaskHandle);
-    displayTaskHandle = nullptr;
-  }
-  vSemaphoreDelete(renderingMutex);
-  renderingMutex = nullptr;
 }
 
 void RosaryPrayerActivity::loop() {
   // Back button: go back to rosary menu
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
-    onComplete();
+    finish();
     return;
   }
 
@@ -50,7 +29,7 @@ void RosaryPrayerActivity::loop() {
   buttonNavigator.onNextRelease([this] {
     if (currentStep < RosaryData::TOTAL_STEPS - 1) {
       currentStep++;
-      updateRequired = true;
+      requestUpdate();
     }
   });
 
@@ -58,21 +37,9 @@ void RosaryPrayerActivity::loop() {
   buttonNavigator.onPreviousRelease([this] {
     if (currentStep > 0) {
       currentStep--;
-      updateRequired = true;
+      requestUpdate();
     }
   });
-}
-
-void RosaryPrayerActivity::displayTaskLoop() {
-  while (true) {
-    if (updateRequired) {
-      updateRequired = false;
-      xSemaphoreTake(renderingMutex, portMAX_DELAY);
-      render();
-      xSemaphoreGive(renderingMutex);
-    }
-    vTaskDelay(10 / portTICK_PERIOD_MS);
-  }
 }
 
 std::string RosaryPrayerActivity::getStepTitle() const {
@@ -324,7 +291,7 @@ void RosaryPrayerActivity::drawBeadVisualization(int x, int y, int width, int he
   }
 }
 
-void RosaryPrayerActivity::render() const {
+void RosaryPrayerActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
   const auto pageWidth = renderer.getScreenWidth();

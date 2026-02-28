@@ -1,7 +1,6 @@
 #pragma once
 #include <I18n.h>
 
-#include <functional>
 #include <string>
 #include <vector>
 
@@ -17,18 +16,11 @@ class AppsMenuActivity final : public Activity {
 
   std::vector<AppManifest> loadedApps;
 
-  const std::function<void()> onGoHome;
-  const std::function<void(const AppManifest& app)> onAppOpen;
-
  public:
-  explicit AppsMenuActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
-                            const std::function<void()>& onGoHome,
-                            const std::function<void(const AppManifest& app)>& onAppOpen)
-      : Activity("AppsMenu", renderer, mappedInput),
-        onGoHome(onGoHome),
-        onAppOpen(onAppOpen) {}
+  explicit AppsMenuActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
+      : Activity("AppsMenu", renderer, mappedInput) {}
   void onEnter() override;
   void onExit() override;
   void loop() override;
-  void render(Activity::RenderLock&&) override;
+  void render(RenderLock&&) override;
 };

@@ -1,15 +1,19 @@
 #pragma once
+
 #include <functional>
 #include <string>
 #include <vector>
 
-#include "../ActivityWithSubactivity.h"
+#include "../Activity.h"
 #include "RecentBooksStore.h"
 #include "util/ButtonNavigator.h"
 
-class MyLibraryActivity final : public ActivityWithSubactivity {
+class MyLibraryActivity final : public Activity {
  private:
   enum class State { BROWSING, FILE_ACTIONS, DELETE_CONFIRM, MOVE_BROWSING };
+
+  // Deletion
+  void clearFileMetadata(const std::string& fullPath);
 
   ButtonNavigator buttonNavigator;
 
@@ -31,10 +35,6 @@ class MyLibraryActivity final : public ActivityWithSubactivity {
   size_t moveSelectorIndex = 0;
   std::string moveError;
 
-  // Callbacks
-  const std::function<void(const std::string& path)> onSelectBook;
-  const std::function<void()> onGoHome;
-
   // Data loading
   void loadFiles();
   void loadMoveDirs();
@@ -51,16 +51,10 @@ class MyLibraryActivity final : public ActivityWithSubactivity {
   void executeMoveHere();
 
  public:
-  explicit MyLibraryActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
-                             const std::function<void()>& onGoHome,
-                             const std::function<void(const std::string& path)>& onSelectBook,
-                             std::string initialPath = "/")
-      : ActivityWithSubactivity("MyLibrary", renderer, mappedInput),
-        basepath(initialPath.empty() ? "/" : std::move(initialPath)),
-        onSelectBook(onSelectBook),
-        onGoHome(onGoHome) {}
+  explicit MyLibraryActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::string initialPath = "/")
+      : Activity("MyLibrary", renderer, mappedInput), basepath(initialPath.empty() ? "/" : std::move(initialPath)) {}
   void onEnter() override;
   void onExit() override;
   void loop() override;
-  void render(Activity::RenderLock&&) override;
+  void render(RenderLock&&) override;
 };

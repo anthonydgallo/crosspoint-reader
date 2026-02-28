@@ -1,6 +1,5 @@
 #pragma once
 
-#include <functional>
 #include <string>
 #include <vector>
 
@@ -17,19 +16,17 @@ class RandomQuoteAppActivity final : public Activity {
   std::string quoteReference;
 
   const AppManifest manifest;
-  const std::function<void()> onGoHome;
 
   void pickRandomQuote();
   void loadAndWrapQuote(int entryIndex);
   void wrapText(const char* text, int fontId, int maxWidth);
 
  public:
-  explicit RandomQuoteAppActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, const AppManifest& manifest,
-                                  const std::function<void()>& onGoHome)
-      : Activity("RandomQuote", renderer, mappedInput), manifest(manifest), onGoHome(onGoHome) {}
+  explicit RandomQuoteAppActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, const AppManifest& manifest)
+      : Activity("RandomQuote", renderer, mappedInput), manifest(manifest) {}
 
   void onEnter() override;
   void onExit() override;
   void loop() override;
-  void render(Activity::RenderLock&&) override;
+  void render(RenderLock&&) override;
 };

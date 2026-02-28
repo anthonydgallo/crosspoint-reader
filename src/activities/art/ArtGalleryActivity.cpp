@@ -63,7 +63,7 @@ void ArtGalleryActivity::loop() {
   }
 }
 
-void ArtGalleryActivity::render(Activity::RenderLock&&) {
+void ArtGalleryActivity::render(RenderLock&&) {
   if (showingArt) {
     renderArtPiece();
   } else {

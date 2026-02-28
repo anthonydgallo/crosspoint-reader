@@ -1,6 +1,5 @@
 #pragma once
 
-#include <functional>
 #include <string>
 #include <vector>
 
@@ -21,7 +20,6 @@ class TextViewerAppActivity final : public Activity {
   int linesPerPage = 0;            // How many lines fit on screen
 
   const AppManifest manifest;
-  const std::function<void()> onGoHome;
 
   void renderList();
   void renderText();
@@ -31,11 +29,10 @@ class TextViewerAppActivity final : public Activity {
   void wrapText(const char* text, int fontId, int maxWidth);
 
  public:
-  explicit TextViewerAppActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, const AppManifest& manifest,
-                                 const std::function<void()>& onGoHome)
-      : Activity("TextViewer", renderer, mappedInput), manifest(manifest), onGoHome(onGoHome) {}
+  explicit TextViewerAppActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, const AppManifest& manifest)
+      : Activity("TextViewer", renderer, mappedInput), manifest(manifest) {}
   void onEnter() override;
   void onExit() override;
   void loop() override;
-  void render(Activity::RenderLock&&) override;
+  void render(RenderLock&&) override;
 };

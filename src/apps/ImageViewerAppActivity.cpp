@@ -159,7 +159,7 @@ void ImageViewerAppActivity::loop() {
   }
 }
 
-void ImageViewerAppActivity::render(Activity::RenderLock&&) {
+void ImageViewerAppActivity::render(RenderLock&&) {
   if (viewingImage) {
     renderImage();
   } else {
