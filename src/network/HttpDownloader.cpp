@@ -50,6 +50,44 @@ class FileWriteStream final : public Stream {
   bool writeOk_ = true;
   HttpDownloader::ProgressCallback progress_;
 };
+
+void configureHttpClient(HTTPClient& http, NetworkClient& client, const std::string& url) {
+  client.setTimeout(HttpDownloader::HTTP_TIMEOUT_MS);
+
+  http.begin(client, url.c_str());
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  http.setConnectTimeout(HttpDownloader::HTTP_CONNECT_TIMEOUT_MS);
+  http.setTimeout(HttpDownloader::HTTP_TIMEOUT_MS);
+  http.addHeader("User-Agent", "CrossPoint-ESP32-" CROSSPOINT_VERSION);
+}
+
+bool shouldAttachOpdsAuthHeader(const std::string& url, bool useAuth) {
+  if (strlen(SETTINGS.opdsUsername) == 0 || strlen(SETTINGS.opdsPassword) == 0) {
+    return false;
+  }
+
+  if (useAuth) {
+    return true;
+  }
+
+  if (strlen(SETTINGS.opdsServerUrl) == 0) {
+    return false;
+  }
+
+  const std::string requestHost = UrlUtils::extractHost(url);
+  const std::string opdsHost = UrlUtils::extractHost(UrlUtils::ensureProtocol(SETTINGS.opdsServerUrl));
+  return !requestHost.empty() && requestHost == opdsHost;
+}
+
+void maybeAttachOpdsAuthHeader(HTTPClient& http, const std::string& url, bool useAuth) {
+  if (!shouldAttachOpdsAuthHeader(url, useAuth)) {
+    return;
+  }
+
+  std::string credentials = std::string(SETTINGS.opdsUsername) + ":" + SETTINGS.opdsPassword;
+  String encoded = base64::encode(credentials.c_str());
+  http.addHeader("Authorization", "Basic " + encoded);
+}
 }  // namespace
 
 bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent, bool useAuth) {
@@ -66,16 +104,8 @@ bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent, bool u
 
   LOG_DBG("HTTP", "Fetching: %s", url.c_str());
 
-  http.begin(*client, url.c_str());
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.addHeader("User-Agent", "CrossPoint-ESP32-" CROSSPOINT_VERSION);
-
-  // Add Basic HTTP auth only when explicitly requested (e.g. for OPDS server)
-  if (useAuth && strlen(SETTINGS.opdsUsername) > 0 && strlen(SETTINGS.opdsPassword) > 0) {
-    std::string credentials = std::string(SETTINGS.opdsUsername) + ":" + SETTINGS.opdsPassword;
-    String encoded = base64::encode(credentials.c_str());
-    http.addHeader("Authorization", "Basic " + encoded);
-  }
+  configureHttpClient(http, *client, url);
+  maybeAttachOpdsAuthHeader(http, url, useAuth);
 
   const int httpCode = http.GET();
   if (httpCode != HTTP_CODE_OK) {
@@ -117,16 +147,8 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
   LOG_DBG("HTTP", "Downloading: %s", url.c_str());
   LOG_DBG("HTTP", "Destination: %s", destPath.c_str());
 
-  http.begin(*client, url.c_str());
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.addHeader("User-Agent", "CrossPoint-ESP32-" CROSSPOINT_VERSION);
-
-  // Add Basic HTTP auth only when explicitly requested (e.g. for OPDS server)
-  if (useAuth && strlen(SETTINGS.opdsUsername) > 0 && strlen(SETTINGS.opdsPassword) > 0) {
-    std::string credentials = std::string(SETTINGS.opdsUsername) + ":" + SETTINGS.opdsPassword;
-    String encoded = base64::encode(credentials.c_str());
-    http.addHeader("Authorization", "Basic " + encoded);
-  }
+  configureHttpClient(http, *client, url);
+  maybeAttachOpdsAuthHeader(http, url, useAuth);
 
   const int httpCode = http.GET();
   if (httpCode != HTTP_CODE_OK) {

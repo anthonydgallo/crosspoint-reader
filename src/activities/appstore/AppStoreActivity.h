@@ -59,6 +59,6 @@ class AppStoreActivity final : public Activity {
   void onWifiSelectionComplete(bool connected);
   void fetchAppList();
   void installApp(const RemoteApp& app);
-  bool downloadFile(const std::string& url, const std::string& destPath, size_t fileSize);
+  bool downloadFile(const std::string& url, const std::string& destPath);
   bool preventAutoSleep() override { return true; }
 };

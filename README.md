@@ -99,6 +99,23 @@ Connect your Xteink X4 to your computer via USB-C and run the following command.
 ```sh
 pio run --target upload
 ```
+
+### Using your fork for App Store and OTA updates
+
+By default, App Store and "Check for updates" use the upstream repository (`crosspoint-reader/crosspoint-reader`).
+
+To point firmware builds to your fork, add these build flags (for example under `[base] -> build_flags` in `platformio.ini`):
+
+```ini
+-DCROSSPOINT_GITHUB_OWNER=\"your-github-username\"
+-DCROSSPOINT_GITHUB_REPO=\"your-fork-repo\"
+# Optional: force a specific branch for App Store listing/install
+-DCROSSPOINT_GITHUB_BRANCH=\"master\"
+```
+
+For OTA updates to work from your fork, your fork must publish GitHub Releases that include a `firmware.bin` asset.
+The provided release workflow (`.github/workflows/release.yml`) already uploads `firmware.bin` when run from tags.
+
 ### Debugging
 
 After flashing the new features, it’s recommended to capture detailed logs from the serial port.
