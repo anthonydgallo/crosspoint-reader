@@ -5,8 +5,6 @@
 #include <Logging.h>
 #include <WiFi.h>
 
-#include <map>
-
 #include "MappedInputManager.h"
 #include "WifiCredentialStore.h"
 #include "activities/util/KeyboardFactory.h"
@@ -71,9 +69,15 @@ void WifiSelectionActivity::onEnter() {
 }
 
 void WifiSelectionActivity::onExit() {
-  Activity::onExit();
+  // Must call ActivityWithSubactivity::onExit() (not Activity::onExit())
+  // to properly clean up any keyboard subactivity render task before our own
+  ActivityWithSubactivity::onExit();
 
   LOG_DBG("WIFI", "Free heap at onExit start: %d bytes", ESP.getFreeHeap());
+
+  // Free network list memory before parent starts heavy operations (e.g. TLS)
+  networks.clear();
+  networks.shrink_to_fit();
 
   // Stop any ongoing WiFi scan
   LOG_DBG("WIFI", "Deleting WiFi scan...");
@@ -92,6 +96,9 @@ void WifiSelectionActivity::startWifiScan() {
   state = WifiSelectionState::SCANNING;
   networks.clear();
   requestUpdate();
+
+  // Free any previous scan results from WiFi driver memory
+  WiFi.scanDelete();
 
   // Set WiFi mode to station
   WiFi.mode(WIFI_STA);
@@ -117,8 +124,9 @@ void WifiSelectionActivity::processWifiScanResults() {
   }
 
   // Scan complete, process results
-  // Use a map to deduplicate networks by SSID, keeping the strongest signal
-  std::map<std::string, WifiNetworkInfo> uniqueNetworks;
+  // Deduplicate directly into the networks vector to avoid std::map overhead
+  // (std::map nodes use ~40 bytes each for tree pointers, significant on ESP32-C3)
+  networks.clear();
 
   for (int i = 0; i < scanResult; i++) {
     std::string ssid = WiFi.SSID(i).c_str();
@@ -129,25 +137,32 @@ void WifiSelectionActivity::processWifiScanResults() {
       continue;
     }
 
-    // Check if we've already seen this SSID
-    auto it = uniqueNetworks.find(ssid);
-    if (it == uniqueNetworks.end() || rssi > it->second.rssi) {
-      // New network or stronger signal than existing entry
+    // Check if this SSID already exists in our vector
+    bool found = false;
+    for (auto& existing : networks) {
+      if (existing.ssid == ssid) {
+        // Keep the stronger signal
+        if (rssi > existing.rssi) {
+          existing.rssi = rssi;
+          existing.isEncrypted = (WiFi.encryptionType(i) != WIFI_AUTH_OPEN);
+        }
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
       WifiNetworkInfo network;
-      network.ssid = ssid;
+      network.ssid = std::move(ssid);
       network.rssi = rssi;
       network.isEncrypted = (WiFi.encryptionType(i) != WIFI_AUTH_OPEN);
       network.hasSavedPassword = WIFI_STORE.hasSavedCredential(network.ssid);
-      uniqueNetworks[ssid] = network;
+      networks.push_back(std::move(network));
     }
   }
 
-  // Convert map to vector
-  networks.clear();
-  for (const auto& pair : uniqueNetworks) {
-    // cppcheck-suppress useStlAlgorithm
-    networks.push_back(pair.second);
-  }
+  // Free scan results from WiFi driver memory before sorting
+  WiFi.scanDelete();
 
   // Sort: saved-password networks first, then by signal strength (strongest first)
   std::sort(networks.begin(), networks.end(), [](const WifiNetworkInfo& a, const WifiNetworkInfo& b) {
@@ -157,7 +172,6 @@ void WifiSelectionActivity::processWifiScanResults() {
     return a.rssi > b.rssi;
   });
 
-  WiFi.scanDelete();
   state = WifiSelectionState::NETWORK_LIST;
   selectedNetworkIndex = 0;
   requestUpdate();
