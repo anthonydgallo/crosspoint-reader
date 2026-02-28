@@ -20,7 +20,6 @@ class RandomQuoteAppActivity final : public Activity {
   std::vector<std::string> wrappedLines;
 
   const AppManifest manifest;
-  const std::function<void()> onGoHome;
 
   void loadQuotes();
   void loadQuotesFromEntry(const AppManifest::Entry& entry);
@@ -30,12 +29,11 @@ class RandomQuoteAppActivity final : public Activity {
   static void trim(std::string& s);
 
  public:
-  explicit RandomQuoteAppActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, const AppManifest& manifest,
-                                  const std::function<void()>& onGoHome)
-      : Activity("RandomQuote", renderer, mappedInput), manifest(manifest), onGoHome(onGoHome) {}
+  explicit RandomQuoteAppActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, const AppManifest& manifest)
+      : Activity("RandomQuote", renderer, mappedInput), manifest(manifest) {}
 
   void onEnter() override;
   void onExit() override;
   void loop() override;
-  void render(Activity::RenderLock&&) override;
+  void render(RenderLock&&) override;
 };

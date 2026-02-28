@@ -101,6 +101,12 @@ void ScrollKeyboardActivity::loop() {
       updateRequired = true;
     } else if (onCancel) {
       onCancel();
+      finish();
+    } else {
+      ActivityResult result;
+      result.isCancelled = true;
+      setResult(std::move(result));
+      finish();
     }
   });
 
@@ -127,6 +133,10 @@ void ScrollKeyboardActivity::loop() {
   if (mappedInput.wasPressed(MappedInputManager::Button::Down)) {
     if (onComplete) {
       onComplete(text);
+      finish();
+    } else {
+      setResult(KeyboardResult{text});
+      finish();
     }
   }
 }

@@ -22,7 +22,7 @@ void RandomQuoteAppActivity::onExit() { Activity::onExit(); }
 
 void RandomQuoteAppActivity::loop() {
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
-    onGoHome();
+    Activity::onGoHome();
     return;
   }
 
@@ -210,7 +210,7 @@ void RandomQuoteAppActivity::trim(std::string& s) {
   s = s.substr(start, end - start);
 }
 
-void RandomQuoteAppActivity::render(Activity::RenderLock&&) {
+void RandomQuoteAppActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
   const auto metrics = UITheme::getInstance().getMetrics();

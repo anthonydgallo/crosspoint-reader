@@ -276,8 +276,6 @@ void HomeActivity::render(RenderLock&&) {
   }
 }
 
-void HomeActivity::onSelectBook(const std::string& path) { activityManager.goToReader(path); }
-
 void HomeActivity::onMyLibraryOpen() { activityManager.goToMyLibrary(); }
 
 void HomeActivity::onRecentsOpen() { activityManager.goToRecentBooks(); }

@@ -14,6 +14,9 @@
  */
 class KeyboardEntryActivity : public Activity {
  public:
+  using OnCompleteCallback = std::function<void(const std::string&)>;
+  using OnCancelCallback = std::function<void()>;
+
   /**
    * Constructor
    * @param renderer Reference to the GfxRenderer for drawing
@@ -25,12 +28,15 @@ class KeyboardEntryActivity : public Activity {
    */
   explicit KeyboardEntryActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                                  std::string title = "Enter Text", std::string initialText = "",
-                                 const size_t maxLength = 0, const bool isPassword = false)
+                                 const size_t maxLength = 0, const bool isPassword = false,
+                                 OnCompleteCallback onComplete = nullptr, OnCancelCallback onCancel = nullptr)
       : Activity("KeyboardEntry", renderer, mappedInput),
         title(std::move(title)),
         text(std::move(initialText)),
         maxLength(maxLength),
-        isPassword(isPassword) {}
+        isPassword(isPassword),
+        onCompleteCallback(std::move(onComplete)),
+        onCancelCallback(std::move(onCancel)) {}
 
   // Activity overrides
   void onEnter() override;
@@ -43,6 +49,8 @@ class KeyboardEntryActivity : public Activity {
   std::string text;
   size_t maxLength;
   bool isPassword;
+  OnCompleteCallback onCompleteCallback;
+  OnCancelCallback onCancelCallback;
 
   ButtonNavigator buttonNavigator;
 

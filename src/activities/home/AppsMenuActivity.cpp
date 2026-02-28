@@ -3,7 +3,7 @@
 #include <GfxRenderer.h>
 #include <I18n.h>
 
-#include "ActivityManager.h"
+#include "../ActivityManager.h"
 #include "MappedInputManager.h"
 #include "apps/AppLoader.h"
 #include "components/UITheme.h"
