@@ -32,6 +32,7 @@ void AppStoreActivity::onEnter() {
   apps.clear();
   selectorIndex = 0;
   errorMessage.clear();
+  fetchPending = false;
   statusMessage = tr(STR_CHECKING_WIFI);
   requestUpdate();
 
@@ -68,6 +69,13 @@ void AppStoreActivity::loop() {
   }
 
   if (state == StoreState::CHECK_WIFI || state == StoreState::LOADING) {
+    // Process deferred fetch - runs with a clean, shallow call stack
+    // instead of deep inside the WifiSelectionActivity callback chain
+    if (state == StoreState::LOADING && fetchPending) {
+      fetchPending = false;
+      fetchAppList();
+      return;
+    }
     if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
       onGoHome();
     }
@@ -208,6 +216,16 @@ void AppStoreActivity::render(Activity::RenderLock&&) {
 
 void AppStoreActivity::fetchAppList() {
   LOG_DBG("STORE", "Fetching app list from GitHub (free heap: %d)", ESP.getFreeHeap());
+
+  // Check heap before attempting TLS connection - the initial API call also
+  // needs ~40-50KB for TLS, not just the per-manifest fetches checked below
+  if (ESP.getFreeHeap() < MIN_HEAP_FOR_TLS) {
+    LOG_ERR("STORE", "Insufficient memory for TLS (%d bytes free, need %zu)", ESP.getFreeHeap(), MIN_HEAP_FOR_TLS);
+    state = StoreState::ERROR;
+    errorMessage = tr(STR_FETCH_FEED_FAILED);
+    requestUpdate();
+    return;
+  }
 
   // Parse directory listing in its own scope so response + JsonDocument are freed
   // before we start making additional HTTPS requests for manifests
@@ -459,8 +477,9 @@ void AppStoreActivity::checkAndConnectWifi() {
   if (WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0)) {
     state = StoreState::LOADING;
     statusMessage = tr(STR_FETCHING_APPS);
+    // Defer fetch to loop() so it runs with a clean, shallow call stack
+    fetchPending = true;
     requestUpdate();
-    fetchAppList();
     return;
   }
 
@@ -479,11 +498,20 @@ void AppStoreActivity::onWifiSelectionComplete(const bool connected) {
   exitActivity();
 
   if (connected) {
-    LOG_DBG("STORE", "WiFi connected, fetching app list");
+    LOG_DBG("STORE", "WiFi connected, deferring app list fetch to loop (free heap: %d)", ESP.getFreeHeap());
     state = StoreState::LOADING;
     statusMessage = tr(STR_FETCHING_APPS);
+    // CRITICAL: Do NOT call fetchAppList() here.  This callback fires from
+    // deep inside the WifiSelectionActivity call chain:
+    //   main loop → AppStore::loop → ActivityWithSubactivity::loop →
+    //   WifiSelection::loop → checkConnectionStatus → onComplete callback →
+    //   here.
+    // Adding HTTPS/TLS operations (which need several KB of stack for mbedTLS)
+    // on top of this deep chain overflows the 8 KB main-task stack on ESP32-C3.
+    // Setting fetchPending defers the work to the next loop() iteration where
+    // the call stack is shallow: main loop → AppStore::loop → fetchAppList.
+    fetchPending = true;
     requestUpdate();
-    fetchAppList();
   } else {
     LOG_DBG("STORE", "WiFi selection cancelled/failed");
     WiFi.disconnect();

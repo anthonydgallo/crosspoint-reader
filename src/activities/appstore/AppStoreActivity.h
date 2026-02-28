@@ -53,6 +53,12 @@ class AppStoreActivity final : public ActivityWithSubactivity {
 
   const std::function<void()> onGoHome;
 
+  // When true, fetchAppList() runs on the next loop() iteration instead of
+  // being called directly from a callback.  This avoids stack overflow: the
+  // onComplete callback fires deep inside the WifiSelectionActivity call chain,
+  // and adding TLS/HTTPS operations on top exceeds the 8 KB main-task stack.
+  bool fetchPending = false;
+
   void checkAndConnectWifi();
   void launchWifiSelection();
   void onWifiSelectionComplete(bool connected);
