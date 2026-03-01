@@ -77,15 +77,9 @@ void SettingsActivity::loop() {
 
   // Handle actions with early return
   if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
-    if (selectedSettingIndex == 0) {
-      selectedCategoryIndex = (selectedCategoryIndex < categoryCount - 1) ? (selectedCategoryIndex + 1) : 0;
-      hasChangedCategory = true;
-      requestUpdate();
-    } else {
-      toggleCurrentSetting();
-      requestUpdate();
-      return;
-    }
+    toggleCurrentSetting();
+    requestUpdate();
+    return;
   }
 
   if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
@@ -94,31 +88,41 @@ void SettingsActivity::loop() {
     return;
   }
 
-  // Handle navigation
-  buttonNavigator.onNextRelease([this] {
-    selectedSettingIndex = ButtonNavigator::nextIndex(selectedSettingIndex, settingsCount + 1);
-    requestUpdate();
-  });
-
-  buttonNavigator.onPreviousRelease([this] {
-    selectedSettingIndex = ButtonNavigator::previousIndex(selectedSettingIndex, settingsCount + 1);
-    requestUpdate();
-  });
-
-  buttonNavigator.onNextContinuous([this, &hasChangedCategory] {
+  // Left/Right (front buttons): navigate category tabs
+  if (mappedInput.wasPressed(MappedInputManager::Button::Right)) {
     hasChangedCategory = true;
     selectedCategoryIndex = ButtonNavigator::nextIndex(selectedCategoryIndex, categoryCount);
     requestUpdate();
-  });
-
-  buttonNavigator.onPreviousContinuous([this, &hasChangedCategory] {
+  } else if (mappedInput.wasPressed(MappedInputManager::Button::Left)) {
     hasChangedCategory = true;
     selectedCategoryIndex = ButtonNavigator::previousIndex(selectedCategoryIndex, categoryCount);
+    requestUpdate();
+  }
+
+  // Up/Down (side buttons): navigate settings list with key repeat
+  using Button = MappedInputManager::Button;
+  buttonNavigator.onRelease({Button::Down}, [this] {
+    selectedSettingIndex = ButtonNavigator::nextIndex(selectedSettingIndex, settingsCount);
+    requestUpdate();
+  });
+
+  buttonNavigator.onRelease({Button::Up}, [this] {
+    selectedSettingIndex = ButtonNavigator::previousIndex(selectedSettingIndex, settingsCount);
+    requestUpdate();
+  });
+
+  buttonNavigator.onContinuous({Button::Down}, [this] {
+    selectedSettingIndex = ButtonNavigator::nextIndex(selectedSettingIndex, settingsCount);
+    requestUpdate();
+  });
+
+  buttonNavigator.onContinuous({Button::Up}, [this] {
+    selectedSettingIndex = ButtonNavigator::previousIndex(selectedSettingIndex, settingsCount);
     requestUpdate();
   });
 
   if (hasChangedCategory) {
-    selectedSettingIndex = (selectedSettingIndex == 0) ? 0 : 1;
+    selectedSettingIndex = 0;
     switch (selectedCategoryIndex) {
       case 0:
         currentSettings = &displaySettings;
@@ -138,12 +142,11 @@ void SettingsActivity::loop() {
 }
 
 void SettingsActivity::toggleCurrentSetting() {
-  int selectedSetting = selectedSettingIndex - 1;
-  if (selectedSetting < 0 || selectedSetting >= settingsCount) {
+  if (selectedSettingIndex < 0 || selectedSettingIndex >= settingsCount) {
     return;
   }
 
-  const auto& setting = (*currentSettings)[selectedSetting];
+  const auto& setting = (*currentSettings)[selectedSettingIndex];
 
   if (setting.type == SettingType::TOGGLE && setting.valuePtr != nullptr) {
     // Toggle the boolean value using the member pointer
@@ -216,7 +219,7 @@ void SettingsActivity::render(RenderLock&&) {
     tabs.push_back({I18N.get(categoryNames[i]), selectedCategoryIndex == i});
   }
   GUI.drawTabBar(renderer, Rect{0, metrics.topPadding + metrics.headerHeight, pageWidth, metrics.tabBarHeight}, tabs,
-                 selectedSettingIndex == 0);
+                 false);
 
   const auto& settings = *currentSettings;
   GUI.drawList(
@@ -224,7 +227,7 @@ void SettingsActivity::render(RenderLock&&) {
       Rect{0, metrics.topPadding + metrics.headerHeight + metrics.tabBarHeight + metrics.verticalSpacing, pageWidth,
            pageHeight - (metrics.topPadding + metrics.headerHeight + metrics.tabBarHeight + metrics.buttonHintsHeight +
                          metrics.verticalSpacing * 2)},
-      settingsCount, selectedSettingIndex - 1,
+      settingsCount, selectedSettingIndex,
       [&settings](int index) { return std::string(I18N.get(settings[index].nameId)); }, nullptr, nullptr,
       [&settings](int i) {
         const auto& setting = settings[i];
@@ -242,9 +245,10 @@ void SettingsActivity::render(RenderLock&&) {
       },
       true);
 
-  // Draw help text
-  const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_TOGGLE), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
+  // Draw help text: Left/Right for tab navigation, Up/Down on side buttons for list
+  const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_TOGGLE), tr(STR_DIR_LEFT), tr(STR_DIR_RIGHT));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  GUI.drawSideButtonHints(renderer, tr(STR_DIR_UP), tr(STR_DIR_DOWN));
 
   // Always use standard refresh for settings screen
   renderer.displayBuffer();

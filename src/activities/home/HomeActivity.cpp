@@ -230,9 +230,11 @@ void HomeActivity::render(RenderLock&&) {
 
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.homeTopPadding}, nullptr);
 
-  GUI.drawRecentBookCover(renderer, Rect{0, metrics.homeTopPadding, pageWidth, metrics.homeCoverTileHeight},
-                          recentBooks, selectorIndex, coverRendered, coverBufferStored, bufferRestored,
-                          std::bind(&HomeActivity::storeCoverBuffer, this));
+  if (metrics.homeCoverTileHeight > 0) {
+    GUI.drawRecentBookCover(renderer, Rect{0, metrics.homeTopPadding, pageWidth, metrics.homeCoverTileHeight},
+                            recentBooks, selectorIndex, coverRendered, coverBufferStored, bufferRestored,
+                            std::bind(&HomeActivity::storeCoverBuffer, this));
+  }
 
   // Build menu items dynamically
   // Menu order: My Library, Recents, [OPDS], Apps, App Store, File Transfer, Settings
