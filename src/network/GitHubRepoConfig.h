@@ -10,6 +10,16 @@
 #define CROSSPOINT_GITHUB_REPO "crosspoint-reader"
 #endif
 
+// OTA source repository can be hard-pinned independently from other GitHub usage.
+// Defaults to firmware repo unless explicitly overridden in build flags.
+#ifndef CROSSPOINT_OTA_GITHUB_OWNER
+#define CROSSPOINT_OTA_GITHUB_OWNER CROSSPOINT_GITHUB_OWNER
+#endif
+
+#ifndef CROSSPOINT_OTA_GITHUB_REPO
+#define CROSSPOINT_OTA_GITHUB_REPO CROSSPOINT_GITHUB_REPO
+#endif
+
 // Optional override. If empty, API requests use the repository's default branch.
 #ifndef CROSSPOINT_GITHUB_BRANCH
 #define CROSSPOINT_GITHUB_BRANCH ""
@@ -33,7 +43,7 @@
 namespace GitHubRepoConfig {
 
 inline std::string firmwareRepoApiBase() {
-  return std::string("https://api.github.com/repos/") + CROSSPOINT_GITHUB_OWNER + "/" + CROSSPOINT_GITHUB_REPO;
+  return std::string("https://api.github.com/repos/") + CROSSPOINT_OTA_GITHUB_OWNER + "/" + CROSSPOINT_OTA_GITHUB_REPO;
 }
 
 inline std::string appsRepoApiBase() {
