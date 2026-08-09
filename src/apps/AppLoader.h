@@ -8,14 +8,19 @@
 // Each subfolder must contain an app.json manifest file to be recognized.
 class AppLoader {
  public:
-  // Scan the SD card /apps/ directory and return all valid app manifests.
-  // Apps are sorted alphabetically by name.
+  // Scan only the small metadata fields needed by the Apps menu. Full entry
+  // arrays are deliberately deferred until an app is opened.
   static std::vector<AppManifest> scanApps();
+
+  // Load and validate the complete manifest for a previously scanned app.
+  static bool loadManifest(const AppManifest& summary, AppManifest& out);
 
  private:
   static constexpr const char* APPS_DIR = "/apps";
   static constexpr const char* MANIFEST_FILE = "app.json";
+  static constexpr size_t MAX_APPS = 64;
+  static constexpr size_t MAX_MANIFEST_BYTES = 2048;
+  static constexpr size_t MAX_ENTRIES = 128;
 
-  // Parse a single app.json file. Returns true on success.
-  static bool parseManifest(const std::string& appPath, AppManifest& out);
+  static bool parseManifest(const std::string& appPath, AppManifest& out, bool includeEntries);
 };

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <functional>
 #include <string>
 #include <vector>
 
@@ -15,15 +14,14 @@ class RandomQuoteAppActivity final : public Activity {
   };
 
   ButtonNavigator buttonNavigator;
-  int selectedIndex = -1;
-  std::vector<Quote> quotes;
+  Quote selectedQuote;
+  bool hasSelectedQuote = false;
   std::vector<std::string> wrappedLines;
 
   const AppManifest manifest;
 
-  void loadQuotes();
-  void loadQuotesFromEntry(const AppManifest::Entry& entry);
   void pickRandomQuote();
+  void considerQuote(const Quote& quote, size_t& seenCount);
   void wrapQuote(const Quote& quote);
   void wrapText(const char* text, int fontId, int maxWidth);
   static void trim(std::string& s);

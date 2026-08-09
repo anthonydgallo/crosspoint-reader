@@ -17,6 +17,7 @@ class AppsMenuActivity final : public Activity {
   int selectorIndex = 0;
 
   std::vector<AppManifest> loadedApps;
+  bool scanning = false;
   bool deleteArmed = false;
   int deleteArmedIndex = -1;
   bool skipNextConfirmRelease = false;
@@ -25,6 +26,7 @@ class AppsMenuActivity final : public Activity {
   void clearDeleteMode();
   void promptDeleteSelectedApp();
   void deleteAppAtIndex(size_t appIndex);
+  bool removeAppTree(const std::string& appPath);
 
  public:
   explicit AppsMenuActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)

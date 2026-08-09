@@ -108,7 +108,7 @@ void maybeKickWatchdog(uint32_t& bytesSinceYield) {
   yield();
 }
 
-bool readNextCsvRecord(FsFile& file, CsvRecord& out, uint32_t& bytesSinceYield) {
+bool readNextCsvRecord(HalFile& file, CsvRecord& out, uint32_t& bytesSinceYield) {
   out.highlight.clear();
   out.bookTitle.clear();
   out.bookAuthor.clear();
@@ -456,7 +456,7 @@ bool BookHighlightsAppActivity::pickRandomHighlight(HighlightRecord& out) {
   bool hasSelection = false;
 
   for (const auto& csvPath : csvFiles) {
-    FsFile file;
+    HalFile file;
     if (!Storage.openFileForRead("BHAPP", csvPath, file)) {
       LOG_ERR("BHAPP", "Failed to open CSV file: %s", csvPath.c_str());
       continue;

@@ -306,7 +306,7 @@ void MinesweeperAppActivity::checkWin() {
 bool MinesweeperAppActivity::saveState() const {
   Storage.mkdir("/.crosspoint");
 
-  FsFile file;
+  HalFile file;
   if (!Storage.openFileForWrite("MSW", MINESWEEPER_SAVE_FILE, file)) {
     LOG_ERR("MSW", "Failed to open save file for writing");
     return false;
@@ -332,7 +332,7 @@ bool MinesweeperAppActivity::saveState() const {
 }
 
 bool MinesweeperAppActivity::loadState() {
-  FsFile file;
+  HalFile file;
   if (!Storage.openFileForRead("MSW", MINESWEEPER_SAVE_FILE, file)) {
     return false;
   }
@@ -387,7 +387,7 @@ void MinesweeperAppActivity::clearSavedState() {
 void MinesweeperAppActivity::saveStats() const {
   Storage.mkdir("/.crosspoint");
 
-  FsFile file;
+  HalFile file;
   if (!Storage.openFileForWrite("MSW", MINESWEEPER_STATS_FILE, file)) {
     LOG_ERR("MSW", "Failed to open stats file for writing");
     return;
@@ -401,7 +401,7 @@ void MinesweeperAppActivity::saveStats() const {
 }
 
 void MinesweeperAppActivity::loadStats() {
-  FsFile file;
+  HalFile file;
   if (!Storage.openFileForRead("MSW", MINESWEEPER_STATS_FILE, file)) {
     stats = Stats{};
     return;

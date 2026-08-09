@@ -1,12 +1,16 @@
 #!python3
-import freetype
 import zlib
 import sys
 import re
 import math
 import argparse
 from collections import namedtuple
-from fontTools.ttLib import TTFont
+
+# Force UTF-8 stdout so that `python fontconvert.py … > foo.h` on Windows
+# (default cp1252) doesn't emit UTF-16 LE / replacement chars in the generated
+# header. Wrapped in a hasattr guard so it's a no-op on older Pythons.
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 
 # Originally from https://github.com/vroland/epdiy
 
@@ -18,7 +22,11 @@ parser.add_argument("--2bit", dest="is2Bit", action="store_true", help="generate
 parser.add_argument("--additional-intervals", dest="additional_intervals", action="append", help="Additional code point intervals to export as min,max. This argument can be repeated.")
 parser.add_argument("--compress", dest="compress", action="store_true", help="Compress glyph bitmaps using DEFLATE with group-based compression.")
 parser.add_argument("--force-autohint", dest="force_autohint", action="store_true", help="Force FreeType auto-hinter instead of native font hinting. Improves stem width consistency for fonts with weak or no native TrueType hints.")
+parser.add_argument("--pnum", dest="pnum", action="store_true", help="Use proportional numerals (pnum OpenType feature) instead of default tabular figures. Reduces visual gaps between digits in running prose.")
 args = parser.parse_args()
+
+import freetype
+from fontTools.ttLib import TTFont
 
 GlyphProps = namedtuple("GlyphProps", ["width", "height", "advance_x", "left", "top", "data_length", "data_offset", "code_point"])
 
@@ -137,15 +145,99 @@ def norm_floor(val):
 def norm_ceil(val):
     return int(math.ceil(val / (1 << 6)))
 
+# Fixed-point (fp4) output conventions (must match EpdFontData.h / fp4 namespace):
+#
+#   advanceX    12.4 unsigned fixed-point (uint16_t).
+#               12 integer bits, 4 fractional bits = 1/16-pixel resolution.
+#               Encoded from FreeType's 16.16 linearHoriAdvance.
+#
+#   kernMatrix  4.4 signed fixed-point (int8_t).
+#               4 integer bits, 4 fractional bits = 1/16-pixel resolution.
+#               Range: -8.0 to +7.9375 pixels.
+#               Encoded from font design-unit kerning values.
+#
+# Both share 4 fractional bits so the renderer can add them directly into a
+# single int32_t accumulator and defer rounding until pixel placement.
+
+def fp4_from_ft16_16(val):
+    """Convert FreeType 16.16 fixed-point to 12.4 fixed-point with rounding."""
+    return (val + (1 << 11)) >> 12
+
+def fp4_from_design_units(du, scale):
+    """Convert a font design-unit value to 4.4 fixed-point, clamped to int8_t.
+
+    Multiplies by scale (ppem / units_per_em) and shifts into 4 fractional
+    bits.  The result is rounded to nearest and clamped to [-128, 127].
+    """
+    raw = round(du * scale * 16)
+    return max(-128, min(127, raw))
+
 def chunks(l, n):
     for i in range(0, len(l), n):
         yield l[i:i + n]
+
+def extract_pnum_subs(font_path):
+    """Extract pnum (proportional figures) GSUB substitutions.
+
+    Parses the font's GSUB table for the 'pnum' feature, which replaces
+    tabular-width figure glyphs with proportional-width alternates.
+    Returns {original_glyph_name: substitute_glyph_name} or empty dict.
+    """
+    font = TTFont(font_path)
+    subs = {}
+    if 'GSUB' not in font:
+        font.close()
+        return subs
+    gsub = font['GSUB'].table
+    pnum_indices = set()
+    if gsub.FeatureList:
+        for fr in gsub.FeatureList.FeatureRecord:
+            if fr.FeatureTag == 'pnum':
+                pnum_indices.update(fr.Feature.LookupListIndex)
+    for li in pnum_indices:
+        lookup = gsub.LookupList.Lookup[li]
+        for st in lookup.SubTable:
+            actual = st
+            if lookup.LookupType == 7 and hasattr(st, 'ExtSubTable'):
+                actual = st.ExtSubTable
+            if hasattr(actual, 'mapping'):
+                subs.update(actual.mapping)
+    font.close()
+    return subs
+
+# Build proportional numeral glyph overrides when --pnum is active.
+# Maps (face_index, codepoint) -> freetype glyph index for the proportional alternate.
+pnum_glyph_overrides = {}
+pnum_kern_subs = {}  # face_index -> {original_glyph_name: substitute_glyph_name}
+if args.pnum:
+    for face_idx, font_path in enumerate(args.fontstack):
+        subs = extract_pnum_subs(font_path)
+        if not subs:
+            continue
+        pnum_kern_subs[face_idx] = subs
+        tt_font = TTFont(font_path)
+        cmap = tt_font.getBestCmap() or {}
+        glyph_order = tt_font.getGlyphOrder()
+        name_to_glyph_idx = {name: idx for idx, name in enumerate(glyph_order)}
+        count = 0
+        for cp, glyph_name in cmap.items():
+            if glyph_name in subs:
+                sub_name = subs[glyph_name]
+                sub_idx = name_to_glyph_idx.get(sub_name, 0)
+                if sub_idx > 0:
+                    pnum_glyph_overrides[(face_idx, cp)] = sub_idx
+                    count += 1
+        tt_font.close()
+        if count > 0:
+            print(f"pnum: {count} glyph substitutions from {font_path}", file=sys.stderr)
 
 def load_glyph(code_point):
     face_index = 0
     while face_index < len(font_stack):
         face = font_stack[face_index]
-        glyph_index = face.get_char_index(code_point)
+        glyph_index = pnum_glyph_overrides.get((face_index, code_point))
+        if glyph_index is None:
+            glyph_index = face.get_char_index(code_point)
         if glyph_index > 0:
             face.load_glyph(glyph_index, load_flags)
             return face
@@ -156,7 +248,7 @@ unmerged_intervals = sorted(intervals + add_ints)
 intervals = []
 unvalidated_intervals = []
 for i_start, i_end in unmerged_intervals:
-    if len(unvalidated_intervals) > 0 and i_start + 1 <= unvalidated_intervals[-1][1]:
+    if len(unvalidated_intervals) > 0 and i_start <= unvalidated_intervals[-1][1] + 1:
         unvalidated_intervals[-1] = (unvalidated_intervals[-1][0], max(unvalidated_intervals[-1][1], i_end))
         continue
     unvalidated_intervals.append((i_start, i_end))
@@ -270,7 +362,9 @@ for i_start, i_end in intervals:
         glyph = GlyphProps(
             width = bitmap.width,
             height = bitmap.rows,
-            advance_x = norm_floor(face.glyph.advance.x),
+            # We use linearHoriAdvance (16.16 fixed-point, unhinted) instead of
+            # advance.x (26.6 fixed-point, grid-fitted to whole pixels by hinter)
+            advance_x = fp4_from_ft16_16(face.glyph.linearHoriAdvance),
             left = face.glyph.bitmap_left,
             top = face.glyph.bitmap_top,
             data_length = len(packed),
@@ -357,23 +451,30 @@ def _extract_pairpos_subtable(subtable, glyph_to_cp, raw_kern):
                     key = (left_glyph, right_glyph)
                     raw_kern[key] = raw_kern.get(key, 0) + xa
 
-def extract_kerning_fonttools(font_path, codepoints, ppem):
+def extract_kerning_fonttools(font_path, codepoints, ppem, pnum_subs=None):
     """Extract kerning pairs from a font file using fonttools.
 
     Returns dict of {(leftCp, rightCp): pixel_adjust} for the given
     codepoints.  Values are scaled from font design units to integer
     pixels at ppem.
+
+    When pnum_subs is provided, substitute glyph names are also included
+    in the lookup so kern pairs referencing proportional alternates are found.
     """
     font = TTFont(font_path)
     units_per_em = font['head'].unitsPerEm
     cmap = font.getBestCmap() or {}
 
-    # Build glyph_name -> codepoint map (only for requested codepoints)
+    # Build glyph_name -> codepoint map (only for requested codepoints).
+    # When pnum is active, include both the original and substitute glyph
+    # names so kern pairs referencing either are captured.
     glyph_to_cp = {}
     for cp in codepoints:
         gname = cmap.get(cp)
         if gname:
             glyph_to_cp[gname] = cp
+            if pnum_subs and gname in pnum_subs:
+                glyph_to_cp[pnum_subs[gname]] = cp
 
     # Collect raw kerning values in font design units
     raw_kern = {}  # (left_glyph_name, right_glyph_name) -> design_units
@@ -406,15 +507,14 @@ def extract_kerning_fonttools(font_path, codepoints, ppem):
 
     font.close()
 
-    # Scale design-unit values to pixels
+    # Scale design-unit kerning values to 4.4 fixed-point pixels.
     scale = ppem / units_per_em
-    result = {}  # (leftCp, rightCp) -> adjust
+    result = {}  # (leftCp, rightCp) -> 4.4 fixed-point adjust
     for (lg, rg), du in raw_kern.items():
         lcp = glyph_to_cp[lg]
         rcp = glyph_to_cp[rg]
-        adjust = int(math.floor(du * scale))
+        adjust = fp4_from_design_units(du, scale)
         if adjust != 0:
-            adjust = max(-128, min(127, adjust))
             result[(lcp, rcp)] = adjust
     return result
 
@@ -426,7 +526,8 @@ ppem = size * 150.0 / 72.0
 kern_map = {}  # (leftCp, rightCp) -> adjust
 for face_idx, cps in face_idx_cps.items():
     font_path = args.fontstack[face_idx]
-    kern_map.update(extract_kerning_fonttools(font_path, cps, ppem))
+    subs = pnum_kern_subs.get(face_idx) if args.pnum else None
+    kern_map.update(extract_kerning_fonttools(font_path, cps, ppem, pnum_subs=subs))
 
 print(f"kerning: {len(kern_map)} pairs extracted", file=sys.stderr)
 
@@ -536,7 +637,7 @@ def extract_ligatures_fonttools(font_path, codepoints):
         # Find lookup indices for ligature features.
         # Currently extracts 'liga' (standard) and 'rlig' (required) only.
         # To also extract discretionary or historical ligatures, add:
-        #   'dlig' - Discretionary Ligatures (e.g., ft, st in Bookerly)
+        #   'dlig' - Discretionary Ligatures (e.g., ft, st in Noto)
         #   'hlig' - Historical Ligatures (e.g., long-s+t in OpenDyslexic)
         # These are off by default in standard text renderers.
         LIGATURE_FEATURES = ('liga', 'rlig')
@@ -661,12 +762,52 @@ print(f"ligatures: {len(ligature_pairs)} pairs extracted", file=sys.stderr)
 
 compress = args.compress
 
+
+def to_byte_aligned(packed, width, height):
+    """Convert packed 2-bit bitmap to byte-aligned format (rows padded to byte boundary).
+
+    In packed format, pixels flow continuously across row boundaries (4 pixels/byte).
+    In byte-aligned format, each row starts at a byte boundary, padding the last byte
+    of each row with zero bits if width % 4 != 0. This improves DEFLATE compression
+    because identical pixel rows produce identical byte patterns regardless of position.
+    """
+    if width == 0 or height == 0:
+        return b''
+    row_stride = (width + 3) // 4  # bytes per byte-aligned row
+    aligned = bytearray(row_stride * height)
+    for y in range(height):
+        for x in range(width):
+            # Read pixel from packed format (continuous bit stream)
+            packed_pos = y * width + x
+            packed_byte_idx = packed_pos // 4
+            packed_shift = (3 - (packed_pos % 4)) * 2
+            pixel = (packed[packed_byte_idx] >> packed_shift) & 0x3
+
+            # Write pixel to byte-aligned format (row-aligned)
+            aligned_byte_idx = y * row_stride + x // 4
+            aligned_shift = (3 - (x % 4)) * 2
+            aligned[aligned_byte_idx] |= (pixel << aligned_shift)
+    return bytes(aligned)
+
+
 # Build groups for compression
+if compress and not is2Bit:
+    print("Error: --compress requires --2bit (byte-aligned compression only supports 2-bit format)", file=sys.stderr)
+    sys.exit(1)
 if compress:
     # Script-based grouping: glyphs that co-occur in typical text rendering
     # are grouped together for efficient LRU caching on the embedded target.
     # Since glyphs are in codepoint order, glyphs in the same Unicode block
     # are contiguous in the array and form natural groups.
+    #
+    # On top of script boundaries, a hard size cap (GROUP_MAX_UNCOMPRESSED_BYTES)
+    # is applied: if adding the next glyph would push the uncompressed group
+    # size over the cap, the group is closed and a new one started with the
+    # same script ID. This bounds the embedded decompressor's transient
+    # malloc regardless of font density (CJK, Vietnamese, user-supplied
+    # fonts with large Unicode blocks). Without it, a single dense script
+    # group can balloon past what fits in a transient page-decompress
+    # allocation on the device.
     SCRIPT_GROUP_RANGES = [
         (0x0000, 0x007F),   # ASCII
         (0x0080, 0x00FF),   # Latin-1 Supplement
@@ -684,6 +825,11 @@ if compress:
         (0xFFFD, 0xFFFD),   # Replacement Character
     ]
 
+    # 64 KB cap: large enough to hold any single built-in script group with
+    # headroom, small enough to be a comfortable transient malloc on the
+    # ESP32-C3.
+    GROUP_MAX_UNCOMPRESSED_BYTES = 65536
+
     def get_script_group(code_point):
         for i, (start, end) in enumerate(SCRIPT_GROUP_RANGES):
             if start <= code_point <= end:
@@ -694,17 +840,34 @@ if compress:
     current_group_id = None
     group_start = 0
     group_count = 0
+    group_uncompressed = 0
 
-    for i, (props, packed) in enumerate(all_glyphs):
+    for i, (props, _) in enumerate(all_glyphs):
         sg = get_script_group(props.code_point)
-        if sg != current_group_id:
+        # Use the byte-aligned size (4-pixel-aligned row stride) rather than
+        # the packed length, since the decompressor consumes byte-aligned
+        # buffers. Empty glyphs contribute zero.
+        glyph_aligned_size = (((props.width + 3) // 4) * props.height
+                              if props.width > 0 and props.height > 0 else 0)
+        if glyph_aligned_size > GROUP_MAX_UNCOMPRESSED_BYTES:
+            raise ValueError(
+                f"Glyph {i} (code point U+{props.code_point:04X}) byte-aligned size "
+                f"{glyph_aligned_size} exceeds GROUP_MAX_UNCOMPRESSED_BYTES="
+                f"{GROUP_MAX_UNCOMPRESSED_BYTES}. Consider: (1) increasing GROUP_MAX_UNCOMPRESSED_BYTES, "
+                f"(2) reducing font size, or (3) excluding this codepoint."  
+            )
+        size_overflow = group_uncompressed + glyph_aligned_size > GROUP_MAX_UNCOMPRESSED_BYTES
+
+        if sg != current_group_id or size_overflow:
             if group_count > 0:
                 groups.append((group_start, group_count))
             current_group_id = sg
             group_start = i
             group_count = 1
+            group_uncompressed = glyph_aligned_size
         else:
             group_count += 1
+            group_uncompressed += glyph_aligned_size
 
     if group_count > 0:
         groups.append((group_start, group_count))
@@ -719,11 +882,12 @@ if compress:
 
     for first_idx, count in groups:
         # Concatenate bitmap data for this group
-        group_data = b''
+        packed_len = 0
+        group_aligned = bytearray()
         for gi in range(first_idx, first_idx + count):
             props, packed = all_glyphs[gi]
-            # Update glyph's dataOffset to be within-group offset
-            within_group_offset = len(group_data)
+            # Update glyph's dataOffset to be within-group offset (packed offset)
+            within_group_offset = packed_len
             old_props = modified_glyph_props[gi]
             modified_glyph_props[gi] = GlyphProps(
                 width=old_props.width,
@@ -735,13 +899,14 @@ if compress:
                 data_offset=within_group_offset,
                 code_point=old_props.code_point,
             )
-            group_data += packed
+            packed_len += len(packed)
+            group_aligned.extend(to_byte_aligned(packed, old_props.width, old_props.height))
 
-        # Compress with raw DEFLATE (no zlib/gzip header)
+        # Compress byte-aligned data with raw DEFLATE (no zlib/gzip header)
         compressor = zlib.compressobj(level=9, wbits=-15)
-        compressed = compressor.compress(group_data) + compressor.flush()
+        compressed = compressor.compress(bytes(group_aligned)) + compressor.flush()
 
-        compressed_groups.append((compressed, len(group_data), count, first_idx))
+        compressed_groups.append((compressed, len(group_aligned), count, first_idx))
         compressed_bitmap_data.extend(compressed)
         compressed_offset += len(compressed)
 
@@ -834,8 +999,10 @@ if compress:
     print(f"    {font_name}Groups,")
     print(f"    {len(compressed_groups)},")
 else:
-    print(f"    nullptr,")
-    print(f"    0,")
+    print("    nullptr,")
+    print("    0,")
+# glyphToGroup (not used for script-grouped fonts)
+print("    nullptr,")
 if kern_map:
     print(f"    {font_name}KernLeftClasses,")
     print(f"    {font_name}KernRightClasses,")

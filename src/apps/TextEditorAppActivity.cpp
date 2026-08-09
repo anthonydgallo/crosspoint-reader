@@ -6,13 +6,24 @@
 #include <Logging.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cstring>
 
 #include "MappedInputManager.h"
-#include "activities/util/KeyboardFactory.h"
+#include "activities/util/KeyboardEntryActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "util/StringUtils.h"
+
+namespace {
+bool isTxtFile(const std::string& name) {
+  if (name.size() < 4) return false;
+  const size_t offset = name.size() - 4;
+  return name[offset] == '.' && std::tolower(static_cast<unsigned char>(name[offset + 1])) == 't' &&
+         std::tolower(static_cast<unsigned char>(name[offset + 2])) == 'x' &&
+         std::tolower(static_cast<unsigned char>(name[offset + 3])) == 't';
+}
+}  // namespace
 
 // ---------------------------------------------------------------------------
 // Lifecycle
@@ -40,7 +51,6 @@ void TextEditorAppActivity::onExit() {
   undoStack.clear();
   redoStack.clear();
   text.clear();
-  savedText.clear();
 }
 
 // ---------------------------------------------------------------------------
@@ -70,7 +80,7 @@ void TextEditorAppActivity::loadFiles() {
 
     if (!file.isDirectory()) {
       std::string filename(name);
-      if (StringUtils::checkFileExtension(filename, ".txt")) {
+      if (isTxtFile(filename)) {
         files.emplace_back(filename);
       }
     }
@@ -91,16 +101,16 @@ void TextEditorAppActivity::loadFiles() {
 void TextEditorAppActivity::openFile(const std::string& filename) {
   std::string filePath = browsePath + "/" + filename;
 
-  char buffer[MAX_FILE_SIZE];
-  size_t bytesRead = Storage.readFileToBuffer(filePath.c_str(), buffer, sizeof(buffer));
-
   std::string content;
-  if (bytesRead > 0) {
-    content.assign(buffer, bytesRead);
-    // Strip null terminators that readFileToBuffer may add
-    while (!content.empty() && content.back() == '\0') {
-      content.pop_back();
+  content.reserve(MAX_FILE_SIZE);
+  HalFile file;
+  if (Storage.openFileForRead("TXTEDIT", filePath, file)) {
+    while (file.available() && content.size() < MAX_FILE_SIZE) {
+      const int value = file.read();
+      if (value < 0) break;
+      if (value != 0) content.push_back(static_cast<char>(value));
     }
+    file.close();
   }
 
   enterEditor(filePath, content);
@@ -109,11 +119,7 @@ void TextEditorAppActivity::openFile(const std::string& filename) {
 void TextEditorAppActivity::createNewFile() {
   // Use keyboard to get filename, then enter editor
   startActivityForResult(
-      std::unique_ptr<Activity>(createKeyboard(
-          renderer, mappedInput, "File Name", "", 10,
-          60,     // max filename length
-          false,  // not password
-          nullptr, nullptr)),
+      std::make_unique<KeyboardEntryActivity>(renderer, mappedInput, "File Name", "", 60),
       [this](const ActivityResult& res) {
         if (res.isCancelled) {
           requestUpdate();
@@ -134,7 +140,7 @@ void TextEditorAppActivity::createNewFile() {
           requestUpdate();
           return;
         }
-        if (!StringUtils::checkFileExtension(sanitized, ".txt")) {
+        if (!isTxtFile(sanitized)) {
           sanitized += ".txt";
         }
 
@@ -155,14 +161,15 @@ void TextEditorAppActivity::enterEditor(const std::string& filePath, const std::
   currentFileName = (pos != std::string::npos) ? filePath.substr(pos + 1) : filePath;
 
   text = content;
-  savedText = content;
+  savedHash = checksum(content);
+  savedSize = content.size();
   cursorPos = static_cast<int>(text.size());
   scrollLine = 0;
 
   undoStack.clear();
   redoStack.clear();
-  // Save initial state
-  pushUndo();
+  undoStack.reserve(MAX_HISTORY_OPERATIONS);
+  redoStack.reserve(MAX_HISTORY_OPERATIONS);
 
   state = State::EDITING;
   rewrapText();
@@ -177,7 +184,8 @@ void TextEditorAppActivity::saveFile() {
   String content(text.c_str());
   if (Storage.writeFile(currentFilePath.c_str(), content)) {
     LOG_DBG("TXTEDIT", "Saved: %s (%d bytes)", currentFilePath.c_str(), static_cast<int>(text.size()));
-    savedText = text;
+    savedHash = checksum(text);
+    savedSize = text.size();
   } else {
     LOG_ERR("TXTEDIT", "Failed to save: %s", currentFilePath.c_str());
   }
@@ -186,7 +194,7 @@ void TextEditorAppActivity::saveFile() {
 void TextEditorAppActivity::insertChar(char c) {
   if (static_cast<int>(text.size()) >= MAX_FILE_SIZE - 1) return;
 
-  pushUndo();
+  recordEdit({EditOperation::Type::Insert, static_cast<uint16_t>(cursorPos), c});
   redoStack.clear();
 
   text.insert(text.begin() + cursorPos, c);
@@ -199,7 +207,9 @@ void TextEditorAppActivity::insertChar(char c) {
 void TextEditorAppActivity::deleteChar() {
   if (cursorPos <= 0) return;
 
-  pushUndo();
+  const int deletedPosition = cursorPos - 1;
+  const char deletedValue = text[deletedPosition];
+  recordEdit({EditOperation::Type::Delete, static_cast<uint16_t>(deletedPosition), deletedValue});
   redoStack.clear();
 
   cursorPos--;
@@ -209,34 +219,26 @@ void TextEditorAppActivity::deleteChar() {
   ensureCursorVisible();
 }
 
-void TextEditorAppActivity::pushUndo() {
-  // Don't push duplicate states
-  if (!undoStack.empty() && undoStack.back().text == text && undoStack.back().cursorPos == cursorPos) {
-    return;
-  }
-
-  undoStack.push_back({text, cursorPos});
-
-  // Limit history size
-  if (static_cast<int>(undoStack.size()) > MAX_UNDO_HISTORY) {
+void TextEditorAppActivity::recordEdit(EditOperation operation) {
+  if (undoStack.size() >= MAX_HISTORY_OPERATIONS) {
     undoStack.erase(undoStack.begin());
   }
+  undoStack.push_back(operation);
 }
 
 void TextEditorAppActivity::undo() {
-  if (undoStack.size() <= 1) return;  // Keep at least the initial state
-
-  // Save current state to redo stack
-  redoStack.push_back({text, cursorPos});
-
-  // Pop and restore
+  if (undoStack.empty()) return;
+  const EditOperation operation = undoStack.back();
   undoStack.pop_back();
-  const auto& snapshot = undoStack.back();
-  text = snapshot.text;
-  cursorPos = snapshot.cursorPos;
-
-  // Clamp cursor
-  if (cursorPos > static_cast<int>(text.size())) cursorPos = static_cast<int>(text.size());
+  if (operation.type == EditOperation::Type::Insert) {
+    if (operation.position < text.size()) text.erase(operation.position, 1);
+    cursorPos = operation.position;
+  } else {
+    text.insert(text.begin() + std::min<size_t>(operation.position, text.size()), operation.value);
+    cursorPos = operation.position + 1;
+  }
+  if (redoStack.size() >= MAX_HISTORY_OPERATIONS) redoStack.erase(redoStack.begin());
+  redoStack.push_back(operation);
 
   rewrapText();
   ensureCursorVisible();
@@ -245,23 +247,33 @@ void TextEditorAppActivity::undo() {
 void TextEditorAppActivity::redo() {
   if (redoStack.empty()) return;
 
-  const auto& snapshot = redoStack.back();
-
-  // Save current state to undo stack
-  undoStack.push_back({text, cursorPos});
-
-  text = snapshot.text;
-  cursorPos = snapshot.cursorPos;
+  const EditOperation operation = redoStack.back();
   redoStack.pop_back();
-
-  // Clamp cursor
-  if (cursorPos > static_cast<int>(text.size())) cursorPos = static_cast<int>(text.size());
+  if (operation.type == EditOperation::Type::Insert) {
+    text.insert(text.begin() + std::min<size_t>(operation.position, text.size()), operation.value);
+    cursorPos = operation.position + 1;
+  } else {
+    if (operation.position < text.size()) text.erase(operation.position, 1);
+    cursorPos = operation.position;
+  }
+  recordEdit(operation);
 
   rewrapText();
   ensureCursorVisible();
 }
 
-bool TextEditorAppActivity::hasUnsavedChanges() const { return text != savedText; }
+uint32_t TextEditorAppActivity::checksum(const std::string& value) {
+  uint32_t hash = 2166136261U;
+  for (const unsigned char byte : value) {
+    hash ^= byte;
+    hash *= 16777619U;
+  }
+  return hash;
+}
+
+bool TextEditorAppActivity::hasUnsavedChanges() const {
+  return text.size() != savedSize || checksum(text) != savedHash;
+}
 
 // ---------------------------------------------------------------------------
 // Text wrapping
@@ -464,11 +476,7 @@ void TextEditorAppActivity::loop() {
       // Confirm = open keyboard to type
       if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
         startActivityForResult(
-            std::unique_ptr<Activity>(createKeyboard(
-                renderer, mappedInput, "Type Text", "", 10,
-                0,      // unlimited
-                false,  // not password
-                nullptr, nullptr)),
+            std::make_unique<KeyboardEntryActivity>(renderer, mappedInput, "Type Text", "", MAX_FILE_SIZE),
             [this](const ActivityResult& res) {
               if (!res.isCancelled) {
                 auto* keyboardResult = std::get_if<KeyboardResult>(&res.data);

@@ -13,6 +13,7 @@
 #include "MappedInputManager.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "util/TaskWatchdog.h"
 
 namespace {
 bool endsWithCI(const char* str, const char* suffix) {
@@ -27,8 +28,7 @@ bool endsWithCI(const char* str, const char* suffix) {
 }
 
 bool hasImageExtension(const char* filename) {
-  return endsWithCI(filename, ".png") || endsWithCI(filename, ".jpg") || endsWithCI(filename, ".jpeg") ||
-         endsWithCI(filename, ".heic");
+  return endsWithCI(filename, ".png") || endsWithCI(filename, ".jpg") || endsWithCI(filename, ".jpeg");
 }
 }  // namespace
 
@@ -36,8 +36,11 @@ std::string ImageViewerAppActivity::getTempBmpPath() const { return manifest.pat
 
 void ImageViewerAppActivity::scanForImages() {
   imageFiles.clear();
-  constexpr size_t MAX_IMAGES = 600;
+  constexpr size_t MAX_IMAGES = 256;
   std::vector<std::string> dirsToScan = {"/"};
+  dirsToScan.reserve(16);
+  imageFiles.reserve(MAX_IMAGES);
+  size_t processedEntries = 0;
 
   while (!dirsToScan.empty() && imageFiles.size() < MAX_IMAGES) {
     const std::string currentDir = dirsToScan.back();
@@ -68,7 +71,7 @@ void ImageViewerAppActivity::scanForImages() {
       fullPath += name;
 
       if (entry.isDirectory()) {
-        dirsToScan.push_back(fullPath);
+        if (dirsToScan.size() < 64) dirsToScan.push_back(fullPath);
         entry.close();
         continue;
       }
@@ -81,10 +84,15 @@ void ImageViewerAppActivity::scanForImages() {
       }
 
       entry.close();
+      if ((++processedEntries & 0x0f) == 0) {
+        yield();
+        resetTaskWatchdogIfSubscribed();
+      }
     }
 
     dir.close();
     yield();
+    resetTaskWatchdogIfSubscribed();
   }
 
   // Sort alphabetically by name
@@ -222,12 +230,7 @@ void ImageViewerAppActivity::renderImage() {
     renderer.clearScreen();
     const auto pageHeight = renderer.getScreenHeight();
 
-    if (endsWithCI(image.name.c_str(), ".heic")) {
-      renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 - 10, "HEIC format is not");
-      renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 + 10, "supported on this device");
-    } else {
-      renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2, "Could not display image");
-    }
+    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2, "Could not display image");
 
     std::string pageStr = std::to_string(currentImageIndex + 1) + "/" + std::to_string(imageFiles.size());
     const auto labels = mappedInput.mapLabels("« Back", pageStr.c_str(), "Prev", "Next");
@@ -240,12 +243,6 @@ bool ImageViewerAppActivity::convertAndDisplayImage(const std::string& imagePath
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
 
-  // HEIC is not supported on the device
-  if (endsWithCI(imagePath.c_str(), ".heic")) {
-    LOG_ERR("IMGV", "HEIC format not supported");
-    return false;
-  }
-
   // Determine image type
   bool isPng = endsWithCI(imagePath.c_str(), ".png");
   bool isJpeg = endsWithCI(imagePath.c_str(), ".jpg") || endsWithCI(imagePath.c_str(), ".jpeg");
@@ -256,7 +253,7 @@ bool ImageViewerAppActivity::convertAndDisplayImage(const std::string& imagePath
   }
 
   // Open source image file
-  FsFile sourceFile;
+  HalFile sourceFile;
   if (!Storage.openFileForRead("IMGV", imagePath, sourceFile)) {
     LOG_ERR("IMGV", "Failed to open image: %s", imagePath.c_str());
     return false;
@@ -264,7 +261,7 @@ bool ImageViewerAppActivity::convertAndDisplayImage(const std::string& imagePath
 
   // Open temp BMP file for writing
   std::string tempPath = getTempBmpPath();
-  FsFile tempBmp;
+  HalFile tempBmp;
   if (!Storage.openFileForWrite("IMGV", tempPath, tempBmp)) {
     LOG_ERR("IMGV", "Failed to create temp BMP: %s", tempPath.c_str());
     sourceFile.close();
@@ -289,7 +286,7 @@ bool ImageViewerAppActivity::convertAndDisplayImage(const std::string& imagePath
   }
 
   // Open the converted BMP for display
-  FsFile bmpFile;
+  HalFile bmpFile;
   if (!Storage.openFileForRead("IMGV", tempPath, bmpFile)) {
     LOG_ERR("IMGV", "Failed to open converted BMP");
     Storage.remove(tempPath.c_str());
