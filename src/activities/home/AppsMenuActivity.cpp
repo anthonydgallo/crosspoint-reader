@@ -11,19 +11,13 @@
 #include "apps/AppLoader.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "util/TaskWatchdog.h"
 
 namespace {
 UIIcon iconForAppType(const std::string& type) {
-  if (type == "art") return UIIcon::Art;
-  if (type == "calculator") return UIIcon::Calculator;
-  if (type == "minesweeper") return UIIcon::Minesweeper;
-  if (type == "rosary") return UIIcon::Rosary;
-  if (type == "flashcard") return UIIcon::Flashcard;
-  if (type == "randomquote") return UIIcon::Quote;
-  if (type == "bookhighlights") return UIIcon::Quote;
-  if (type == "texteditor") return UIIcon::TextEditor;
-  if (type == "textviewer") return UIIcon::Text;
-  if (type == "imageviewer") return UIIcon::Image;
+  if (type == "art" || type == "imageviewer") return UIIcon::Image;
+  if (type == "randomquote" || type == "bookhighlights" || type == "textviewer") return UIIcon::Text;
+  if (type == "texteditor") return UIIcon::File;
   return UIIcon::File;
 }
 }  // namespace
@@ -31,7 +25,10 @@ UIIcon iconForAppType(const std::string& type) {
 void AppsMenuActivity::onEnter() {
   Activity::onEnter();
 
+  scanning = true;
+  requestUpdateAndWait();
   loadedApps = AppLoader::scanApps();
+  scanning = false;
   selectorIndex = 0;
   deleteArmed = false;
   deleteArmedIndex = -1;
@@ -148,7 +145,7 @@ void AppsMenuActivity::deleteAppAtIndex(const size_t appIndex) {
   const std::string appPath = loadedApps[appIndex].path;
   const std::string appName = loadedApps[appIndex].name;
 
-  if (Storage.removeDir(appPath.c_str())) {
+  if (removeAppTree(appPath)) {
     LOG_DBG("APPS", "Deleted app: %s (%s)", appName.c_str(), appPath.c_str());
     loadedApps.erase(loadedApps.begin() + static_cast<int>(appIndex));
     if (selectorIndex >= static_cast<int>(loadedApps.size()) && !loadedApps.empty()) {
@@ -166,6 +163,49 @@ void AppsMenuActivity::deleteAppAtIndex(const size_t appIndex) {
   requestUpdate();
 }
 
+bool AppsMenuActivity::removeAppTree(const std::string& appPath) {
+  constexpr const char* prefix = "/apps/";
+  if (appPath.rfind(prefix, 0) != 0 || appPath.size() <= strlen(prefix) || appPath.find("..") != std::string::npos) {
+    LOG_ERR("APPS", "Refusing unsafe app delete path: %s", appPath.c_str());
+    return false;
+  }
+
+  std::vector<std::pair<std::string, bool>> stack;
+  stack.reserve(8);
+  stack.push_back({appPath, false});
+  char name[256];
+  size_t operations = 0;
+  while (!stack.empty()) {
+    auto [path, postOrder] = std::move(stack.back());
+    stack.pop_back();
+    if (postOrder) {
+      if (!Storage.rmdir(path.c_str())) return false;
+    } else {
+      auto dir = Storage.open(path.c_str());
+      if (!dir || !dir.isDirectory()) return false;
+      stack.push_back({path, true});
+      dir.rewindDirectory();
+      for (auto entry = dir.openNextFile(); entry; entry = dir.openNextFile()) {
+        entry.getName(name, sizeof(name));
+        if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
+        std::string child = path + "/" + name;
+        const bool isDirectory = entry.isDirectory();
+        entry.close();
+        if (isDirectory) {
+          stack.push_back({std::move(child), false});
+        } else if (!Storage.remove(child.c_str())) {
+          return false;
+        }
+        if ((++operations & 0x07U) == 0) {
+          yield();
+          resetTaskWatchdogIfSubscribed();
+        }
+      }
+    }
+  }
+  return true;
+}
+
 void AppsMenuActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
@@ -180,10 +220,16 @@ void AppsMenuActivity::render(RenderLock&&) {
 
   const int totalItems = static_cast<int>(loadedApps.size());
 
-  GUI.drawList(
-      renderer, Rect{0, contentTop, pageWidth, contentHeight}, totalItems, selectorIndex,
-      [this](int index) { return loadedApps[index].name; }, nullptr,
-      [this](int index) { return iconForAppType(loadedApps[index].type); }, nullptr);
+  if (scanning) {
+    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2, "Scanning apps...");
+  } else if (loadedApps.empty()) {
+    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2, "Copy apps to /apps on the SD card");
+  } else {
+    GUI.drawList(
+        renderer, Rect{0, contentTop, pageWidth, contentHeight}, totalItems, selectorIndex,
+        [this](int index) { return loadedApps[index].name; }, nullptr,
+        [this](int index) { return iconForAppType(loadedApps[index].type); }, nullptr);
+  }
 
   if (!deleteStatus.empty()) {
     renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - metrics.buttonHintsHeight - 20, deleteStatus.c_str(), true,

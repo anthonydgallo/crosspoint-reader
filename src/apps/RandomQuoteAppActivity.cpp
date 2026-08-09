@@ -10,10 +10,10 @@
 #include "MappedInputManager.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "util/TaskWatchdog.h"
 
 void RandomQuoteAppActivity::onEnter() {
   Activity::onEnter();
-  loadQuotes();
   pickRandomQuote();
   requestUpdate();
 }
@@ -39,93 +39,67 @@ void RandomQuoteAppActivity::loop() {
   }
 }
 
-void RandomQuoteAppActivity::loadQuotes() {
-  quotes.clear();
+void RandomQuoteAppActivity::pickRandomQuote() {
+  hasSelectedQuote = false;
+  size_t seenCount = 0;
 
   for (const auto& entry : manifest.entries) {
-    loadQuotesFromEntry(entry);
-  }
-
-  if (quotes.empty()) {
-    quotes.push_back({"", "No quotes configured."});
-  }
-}
-
-void RandomQuoteAppActivity::loadQuotesFromEntry(const AppManifest::Entry& entry) {
-  const std::string filePath = manifest.path + "/" + entry.file;
-  FsFile file;
-  if (!Storage.openFileForRead("RQAPP", filePath, file)) {
-    LOG_ERR("RQAPP", "Failed to open quote file: %s", filePath.c_str());
-    return;
-  }
-
-  std::string line;
-  while (file.available()) {
-    const char ch = static_cast<char>(file.read());
-    if (ch == '\r') {
-      continue;
-    }
-    if (ch != '\n') {
-      line.push_back(ch);
+    const std::string filePath = manifest.path + "/" + entry.file;
+    HalFile file;
+    if (!Storage.openFileForRead("RQAPP", filePath, file)) {
+      LOG_ERR("RQAPP", "Failed to open quote file: %s", filePath.c_str());
       continue;
     }
 
-    trim(line);
-    if (!line.empty() && line[0] != '#') {
-      const auto splitPos = line.find('|');
-      if (splitPos != std::string::npos) {
-        std::string reference = line.substr(0, splitPos);
-        std::string quoteText = line.substr(splitPos + 1);
-        trim(reference);
-        trim(quoteText);
-        if (!quoteText.empty()) {
-          quotes.push_back({reference, quoteText});
-        }
+    std::string line;
+    line.reserve(256);
+    size_t processedLines = 0;
+    const auto consumeLine = [this, &entry, &seenCount](std::string& candidate) {
+      trim(candidate);
+      if (candidate.empty() || candidate[0] == '#') return;
+      const auto splitPos = candidate.find('|');
+      Quote quote;
+      if (splitPos == std::string::npos) {
+        quote = {entry.title, candidate};
       } else {
-        quotes.push_back({entry.title, line});
+        quote.reference = candidate.substr(0, splitPos);
+        quote.text = candidate.substr(splitPos + 1);
+        trim(quote.reference);
+        trim(quote.text);
+      }
+      if (!quote.text.empty()) considerQuote(quote, seenCount);
+    };
+
+    while (file.available()) {
+      const char ch = static_cast<char>(file.read());
+      if (ch == '\r') continue;
+      if (ch != '\n') {
+        // Bound malformed single lines so an app data file cannot exhaust heap.
+        if (line.size() < 2048) line.push_back(ch);
+        continue;
+      }
+      consumeLine(line);
+      line.clear();
+      if ((++processedLines & 0x1f) == 0) {
+        yield();
+        resetTaskWatchdogIfSubscribed();
       }
     }
-    line.clear();
+    consumeLine(line);
+    file.close();
   }
 
-  trim(line);
-  if (!line.empty() && line[0] != '#') {
-    const auto splitPos = line.find('|');
-    if (splitPos != std::string::npos) {
-      std::string reference = line.substr(0, splitPos);
-      std::string quoteText = line.substr(splitPos + 1);
-      trim(reference);
-      trim(quoteText);
-      if (!quoteText.empty()) {
-        quotes.push_back({reference, quoteText});
-      }
-    } else {
-      quotes.push_back({entry.title, line});
-    }
-  }
-
-  file.close();
+  if (!hasSelectedQuote) selectedQuote = {"", "No quotes configured."};
+  wrapQuote(selectedQuote);
 }
 
-void RandomQuoteAppActivity::pickRandomQuote() {
-  const int count = static_cast<int>(quotes.size());
-  if (count < 1) {
-    selectedIndex = -1;
-    wrappedLines.clear();
-    wrappedLines.push_back("No quotes available.");
-    return;
+void RandomQuoteAppActivity::considerQuote(const Quote& quote, size_t& seenCount) {
+  ++seenCount;
+  // Reservoir sampling chooses uniformly while keeping only one quote in RAM.
+  if (seenCount == 1 || esp_random() % seenCount == 0) {
+    selectedQuote = quote;
+    hasSelectedQuote = true;
   }
-
-  int nextIndex = 0;
-  if (count > 1) {
-    nextIndex = static_cast<int>(esp_random() % count);
-    if (nextIndex == selectedIndex) {
-      nextIndex = (nextIndex + 1 + static_cast<int>(esp_random() % (count - 1))) % count;
-    }
-  }
-
-  selectedIndex = nextIndex;
-  wrapQuote(quotes[selectedIndex]);
 }
 
 void RandomQuoteAppActivity::wrapQuote(const Quote& quote) {
@@ -220,7 +194,7 @@ void RandomQuoteAppActivity::render(RenderLock&&) {
 
   const int quoteLineHeight = renderer.getLineHeight(UI_12_FONT_ID);
   const int refLineHeight = renderer.getLineHeight(UI_10_FONT_ID);
-  const bool hasReference = selectedIndex >= 0 && !quotes[selectedIndex].reference.empty();
+  const bool hasReference = !selectedQuote.reference.empty();
 
   const int referencePad = hasReference ? (refLineHeight + metrics.verticalSpacing) : 0;
   const int quoteBlockHeight = static_cast<int>(wrappedLines.size()) * quoteLineHeight;
@@ -240,7 +214,7 @@ void RandomQuoteAppActivity::render(RenderLock&&) {
   }
 
   if (hasReference) {
-    const auto& reference = quotes[selectedIndex].reference;
+    const auto& reference = selectedQuote.reference;
     int refX = (pageWidth - renderer.getTextWidth(UI_10_FONT_ID, reference.c_str())) / 2;
     if (refX < sidePadding) {
       refX = sidePadding;

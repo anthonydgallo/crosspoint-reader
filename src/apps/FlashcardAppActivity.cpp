@@ -33,7 +33,7 @@ uint32_t FlashcardAppActivity::currentDay() {
   if (!s_bootDayInitialized) {
     // Try to read persisted day counter
     constexpr char DAY_FILE[] = "/.crosspoint/flashcard_day.bin";
-    FsFile file;
+    HalFile file;
     if (Storage.openFileForRead("FC", DAY_FILE, file)) {
       uint32_t saved = 0;
       serialization::readPod(file, saved);
@@ -45,7 +45,7 @@ uint32_t FlashcardAppActivity::currentDay() {
 
     // Persist updated day
     Storage.mkdir("/.crosspoint");
-    FsFile wf;
+    HalFile wf;
     if (Storage.openFileForWrite("FC", DAY_FILE, wf)) {
       serialization::writePod(wf, s_bootDay);
       wf.close();
@@ -401,7 +401,7 @@ bool FlashcardAppActivity::saveState() const {
   Storage.mkdir("/.crosspoint");
 
   std::string path = getSaveFilePath();
-  FsFile file;
+  HalFile file;
   if (!Storage.openFileForWrite("FC", path.c_str(), file)) {
     LOG_ERR("FC", "Failed to open save file for writing: %s", path.c_str());
     return false;
@@ -425,7 +425,7 @@ bool FlashcardAppActivity::saveState() const {
 
 bool FlashcardAppActivity::loadState() {
   std::string path = getSaveFilePath();
-  FsFile file;
+  HalFile file;
   if (!Storage.openFileForRead("FC", path.c_str(), file)) {
     return false;
   }

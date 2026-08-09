@@ -4,6 +4,7 @@
 #include <freertos/semphr.h>
 #include <freertos/task.h>
 
+#include <atomic>
 #include <cassert>
 #include <memory>
 #include <string>
@@ -11,10 +12,13 @@
 
 #include "GfxRenderer.h"
 #include "MappedInputManager.h"
+#include "util/ScreenshotInfo.h"
 
-class Activity;     // forward declaration
-class RenderLock;   // forward declaration
-struct AppManifest; // forward declaration
+class Activity;    // forward declaration
+class RenderLock;  // forward declaration
+struct AppManifest;
+
+enum class HomeMenuItem { NONE, FILE_BROWSER, RECENTS, OPDS_BROWSER, APPS, FILE_TRANSFER, SETTINGS_MENU };
 
 /**
  * ActivityManager
@@ -51,13 +55,17 @@ class ActivityManager {
   static void renderTaskTrampoline(void* param);
   [[noreturn]] virtual void renderTaskLoop();
 
+  // Set by requestUpdateAndWait(); read and cleared by the render task after render completes.
+  // Note: only one waiting task is supported at a time
+  TaskHandle_t waitingTaskHandle = nullptr;
+
   // Mutex to protect rendering operations from race conditions
   // Must only be used via RenderLock
   SemaphoreHandle_t renderingMutex = nullptr;
 
   // Whether to trigger a render after the current loop()
   // This variable must only be set by the main loop, to avoid race conditions
-  bool requestedUpdate = false;
+  std::atomic<bool> requestedUpdate{false};
 
  public:
   explicit ActivityManager(GfxRenderer& renderer, MappedInputManager& mappedInput)
@@ -76,19 +84,17 @@ class ActivityManager {
   // goTo... functions are convenient wrapper for replaceActivity()
   void goToFileTransfer();
   void goToSettings();
-  void goToMyLibrary(std::string path = {});
+  void goToFileBrowser(std::string path = {});
   void goToRecentBooks();
   void goToBrowser();
-  void goToReader(std::string path);
-  void goToSleep();
+  void goToReader(std::string path, bool allowFastInitialRefresh = false);
+  void goToSleep(bool fromTimeout = false);
   void goToBoot();
   void goToFullScreenMessage(std::string message, EpdFontFamily::Style style = EpdFontFamily::REGULAR);
-  void goHome();
-
-  // Fork-specific navigation methods
+  void goToCrashReport();
   void goToAppsMenu();
-  void goToAppStore();
-  void goToOpenApp(const AppManifest& app);
+  void goToOpenApp(const AppManifest& summary);
+  void goHome(HomeMenuItem initialMenuItem = HomeMenuItem::NONE);
 
   // This will move current activity to stack instead of deleting it
   void pushActivity(std::unique_ptr<Activity>&& activity);
@@ -99,11 +105,17 @@ class ActivityManager {
 
   bool preventAutoSleep() const;
   bool isReaderActivity() const;
+  bool handleForcedRefresh();
   bool skipLoopDelay() const;
+  ScreenshotInfo getScreenshotInfo() const;
 
   // If immediate is true, the update will be triggered immediately.
   // Otherwise, it will be deferred until the end of the current loop iteration.
   void requestUpdate(bool immediate = false);
+
+  // Trigger a render and block until it completes.
+  // Must NOT be called from the render task or while holding a RenderLock.
+  void requestUpdateAndWait();
 };
 
 extern ActivityManager activityManager;  // singleton, to be defined in main.cpp

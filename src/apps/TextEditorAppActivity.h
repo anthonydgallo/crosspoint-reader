@@ -22,13 +22,14 @@ class TextEditorAppActivity final : public Activity {
     CONFIRM_QUIT,  // Confirm quit without saving
   };
 
-  // Undo/redo history entry
-  struct Snapshot {
-    std::string text;
-    int cursorPos;
+  struct EditOperation {
+    enum class Type : uint8_t { Insert, Delete };
+    Type type;
+    uint16_t position;
+    char value;
   };
 
-  static constexpr int MAX_UNDO_HISTORY = 20;
+  static constexpr size_t MAX_HISTORY_OPERATIONS = 128;
   static constexpr int MAX_FILE_SIZE = 8192;  // 8KB max file size
   static constexpr const char* TEXT_DIR = "/texts";
 
@@ -44,14 +45,15 @@ class TextEditorAppActivity final : public Activity {
   std::string currentFilePath;
   std::string currentFileName;
   std::string text;
-  std::string savedText;  // Text as last saved (to detect changes)
+  uint32_t savedHash = 0;
+  size_t savedSize = 0;
   int cursorPos = 0;
   int scrollLine = 0;
   int linesPerPage = 0;
 
   // Undo/redo
-  std::vector<Snapshot> undoStack;
-  std::vector<Snapshot> redoStack;
+  std::vector<EditOperation> undoStack;
+  std::vector<EditOperation> redoStack;
 
   // Wrapped lines for display
   std::vector<std::string> wrappedLines;
@@ -70,10 +72,11 @@ class TextEditorAppActivity final : public Activity {
   void saveFile();
   void insertChar(char c);
   void deleteChar();  // backspace
-  void pushUndo();
+  void recordEdit(EditOperation operation);
   void undo();
   void redo();
   bool hasUnsavedChanges() const;
+  static uint32_t checksum(const std::string& value);
 
   // Text wrapping
   void rewrapText();

@@ -1,22 +1,26 @@
 #include "ActivityManager.h"
 
+#include <FontCacheManager.h>
 #include <HalPowerManager.h>
 
+#include <algorithm>
+
+#include "OpdsServerStore.h"
 #include "boot_sleep/BootActivity.h"
 #include "boot_sleep/SleepActivity.h"
 #include "browser/OpdsBookBrowserActivity.h"
+#include "art/ArtGalleryActivity.h"
+#include "home/CrashActivity.h"
 #include "home/AppsMenuActivity.h"
+#include "home/FileBrowserActivity.h"
 #include "home/HomeActivity.h"
-#include "home/MyLibraryActivity.h"
 #include "home/RecentBooksActivity.h"
 #include "network/CrossPointWebServerActivity.h"
 #include "reader/ReaderActivity.h"
+#include "settings/OpdsServerListActivity.h"
 #include "settings/SettingsActivity.h"
 #include "util/FullScreenMessageActivity.h"
-#include "appstore/AppStoreActivity.h"
-#include "art/ArtGalleryActivity.h"
-#include "rosary/RosaryActivity.h"
-#include "apps/AppManifest.h"
+#include "apps/AppLoader.h"
 #include "apps/BookHighlightsAppActivity.h"
 #include "apps/CalculatorAppActivity.h"
 #include "apps/FlashcardAppActivity.h"
@@ -25,13 +29,22 @@
 #include "apps/RandomQuoteAppActivity.h"
 #include "apps/TextEditorAppActivity.h"
 #include "apps/TextViewerAppActivity.h"
+#include "rosary/RosaryActivity.h"
+
+static portMUX_TYPE activityManagerSpinlock = portMUX_INITIALIZER_UNLOCKED;
 
 void ActivityManager::begin() {
-  xTaskCreate(&renderTaskTrampoline, "ActivityManagerRender",
-              8192,              // Stack size
-              this,              // Parameters
-              1,                 // Priority
-              &renderTaskHandle  // Task handle
+#if defined(configNUM_CORES) && configNUM_CORES > 1
+  constexpr BaseType_t renderTaskCore = 1;
+#else
+  constexpr BaseType_t renderTaskCore = 0;
+#endif
+  xTaskCreatePinnedToCore(&renderTaskTrampoline, "ActivityManagerRender",
+                          8192,               // Stack size
+                          this,               // Parameters
+                          1,                  // Priority
+                          &renderTaskHandle,  // Task handle
+                          renderTaskCore  // Keep long renders/cover decodes off CPU 0's idle watchdog when available
   );
   assert(renderTaskHandle != nullptr && "Failed to create render task");
 }
@@ -51,11 +64,28 @@ void ActivityManager::renderTaskLoop() {
       HalPowerManager::Lock powerLock;  // Ensure we don't go into low-power mode while rendering
       currentActivity->render(std::move(lock));
     }
+    // Notify any task blocked in requestUpdateAndWait() that the render is done.
+    TaskHandle_t waiter = nullptr;
+    taskENTER_CRITICAL(&activityManagerSpinlock);
+    waiter = waitingTaskHandle;
+    waitingTaskHandle = nullptr;
+    taskEXIT_CRITICAL(&activityManagerSpinlock);
+    if (waiter) {
+      xTaskNotify(waiter, 1, eIncrement);
+    }
   }
 }
 
 void ActivityManager::loop() {
   if (currentActivity) {
+    if (!currentActivity->isHomeActivity() && mappedInput.wasHomeGesture()) {
+      if (currentActivity->handleHomeGesture()) {
+        return;
+      }
+      goHome();
+      return;
+    }
+
     // Note: do not hold a lock here, the loop() method must be responsible for acquire one if needed
     currentActivity->loop();
   }
@@ -135,8 +165,7 @@ void ActivityManager::loop() {
     }
   }
 
-  if (requestedUpdate) {
-    requestedUpdate = false;
+  if (requestedUpdate.exchange(false)) {
     // Using direct notification to signal the render task to update
     // Increment counter so multiple rapid calls won't be lost
     if (renderTaskHandle) {
@@ -173,8 +202,8 @@ void ActivityManager::goToFileTransfer() {
 
 void ActivityManager::goToSettings() { replaceActivity(std::make_unique<SettingsActivity>(renderer, mappedInput)); }
 
-void ActivityManager::goToMyLibrary(std::string path) {
-  replaceActivity(std::make_unique<MyLibraryActivity>(renderer, mappedInput, std::move(path)));
+void ActivityManager::goToFileBrowser(std::string path) {
+  replaceActivity(std::make_unique<FileBrowserActivity>(renderer, mappedInput, std::move(path)));
 }
 
 void ActivityManager::goToRecentBooks() {
@@ -182,15 +211,21 @@ void ActivityManager::goToRecentBooks() {
 }
 
 void ActivityManager::goToBrowser() {
-  replaceActivity(std::make_unique<OpdsBookBrowserActivity>(renderer, mappedInput));
+  const auto& servers = OPDS_STORE.getServers();
+  // Skip the server picker when there's only one server configured
+  if (servers.size() == 1) {
+    replaceActivity(std::make_unique<OpdsBookBrowserActivity>(renderer, mappedInput, servers[0]));
+  } else {
+    replaceActivity(std::make_unique<OpdsServerListActivity>(renderer, mappedInput, true));
+  }
 }
 
-void ActivityManager::goToReader(std::string path) {
-  replaceActivity(std::make_unique<ReaderActivity>(renderer, mappedInput, std::move(path)));
+void ActivityManager::goToReader(std::string path, const bool allowFastInitialRefresh) {
+  replaceActivity(std::make_unique<ReaderActivity>(renderer, mappedInput, std::move(path), allowFastInitialRefresh));
 }
 
-void ActivityManager::goToSleep() {
-  replaceActivity(std::make_unique<SleepActivity>(renderer, mappedInput));
+void ActivityManager::goToSleep(bool fromTimeout) {
+  replaceActivity(std::make_unique<SleepActivity>(renderer, mappedInput, fromTimeout));
   loop();  // Important: sleep screen must be rendered immediately, the caller will go to sleep right after this returns
 }
 
@@ -200,14 +235,13 @@ void ActivityManager::goToFullScreenMessage(std::string message, EpdFontFamily::
   replaceActivity(std::make_unique<FullScreenMessageActivity>(renderer, mappedInput, std::move(message), style));
 }
 
-void ActivityManager::goHome() { replaceActivity(std::make_unique<HomeActivity>(renderer, mappedInput)); }
-
 void ActivityManager::goToAppsMenu() { replaceActivity(std::make_unique<AppsMenuActivity>(renderer, mappedInput)); }
 
-void ActivityManager::goToAppStore() { replaceActivity(std::make_unique<AppStoreActivity>(renderer, mappedInput)); }
-
-void ActivityManager::goToOpenApp(const AppManifest& app) {
-  if (app.type == "rosary") {
+void ActivityManager::goToOpenApp(const AppManifest& summary) {
+  AppManifest app;
+  if (!AppLoader::loadManifest(summary, app)) {
+    goToFullScreenMessage("Invalid app manifest");
+  } else if (app.type == "rosary") {
     replaceActivity(std::make_unique<RosaryActivity>(renderer, mappedInput));
   } else if (app.type == "art") {
     replaceActivity(std::make_unique<ArtGalleryActivity>(renderer, mappedInput));
@@ -228,10 +262,30 @@ void ActivityManager::goToOpenApp(const AppManifest& app) {
   } else if (app.type == "imageviewer") {
     replaceActivity(std::make_unique<ImageViewerAppActivity>(renderer, mappedInput, app));
   } else {
-    LOG_ERR("ACT", "Unknown app type: %s", app.type.c_str());
-    goHome();
+    goToFullScreenMessage("Unsupported app type");
   }
 }
+
+void ActivityManager::goHome(HomeMenuItem initialMenuItem) {
+  if (initialMenuItem == HomeMenuItem::NONE && currentActivity) {
+    const auto& activityName = currentActivity->name;
+    if (activityName == "FileBrowser") {
+      initialMenuItem = HomeMenuItem::FILE_BROWSER;
+    } else if (activityName == "RecentBooks") {
+      initialMenuItem = HomeMenuItem::RECENTS;
+    } else if (activityName == "OpdsBookBrowser") {
+      initialMenuItem = HomeMenuItem::OPDS_BROWSER;
+    } else if (activityName == "AppsMenu") {
+      initialMenuItem = HomeMenuItem::APPS;
+    } else if (activityName == "CrossPointWebServer") {
+      initialMenuItem = HomeMenuItem::FILE_TRANSFER;
+    } else if (activityName == "Settings") {
+      initialMenuItem = HomeMenuItem::SETTINGS_MENU;
+    }
+  }
+  replaceActivity(std::make_unique<HomeActivity>(renderer, mappedInput, initialMenuItem));
+}
+void ActivityManager::goToCrashReport() { replaceActivity(std::make_unique<CrashActivity>(renderer, mappedInput)); }
 
 void ActivityManager::pushActivity(std::unique_ptr<Activity>&& activity) {
   if (pendingActivity) {
@@ -254,9 +308,22 @@ void ActivityManager::popActivity() {
 
 bool ActivityManager::preventAutoSleep() const { return currentActivity && currentActivity->preventAutoSleep(); }
 
-bool ActivityManager::isReaderActivity() const { return currentActivity && currentActivity->isReaderActivity(); }
+bool ActivityManager::isReaderActivity() const {
+  return std::any_of(stackActivities.begin(), stackActivities.end(),
+                     [](const auto& activity) { return activity->isReaderActivity(); }) ||
+         (currentActivity && currentActivity->isReaderActivity());
+}
+
+bool ActivityManager::handleForcedRefresh() { return currentActivity && currentActivity->handleForcedRefresh(); }
 
 bool ActivityManager::skipLoopDelay() const { return currentActivity && currentActivity->skipLoopDelay(); }
+
+ScreenshotInfo ActivityManager::getScreenshotInfo() const {
+  if (currentActivity) {
+    return currentActivity->getScreenshotInfo();
+  }
+  return {};
+}
 
 void ActivityManager::requestUpdate(bool immediate) {
   if (immediate) {
@@ -269,6 +336,36 @@ void ActivityManager::requestUpdate(bool immediate) {
     requestedUpdate = true;
   }
 }
+void ActivityManager::requestUpdateAndWait() {
+  if (!renderTaskHandle) {
+    return;
+  }
+
+  // Atomic section to perform checks
+  taskENTER_CRITICAL(&activityManagerSpinlock);
+  auto currTaskHandler = xTaskGetCurrentTaskHandle();
+  auto mutexHolder = xSemaphoreGetMutexHolder(renderingMutex);
+  bool isRenderTask = (currTaskHandler == renderTaskHandle);
+  bool alreadyWaiting = (waitingTaskHandle != nullptr);
+  bool holdingRenderLock = (mutexHolder == currTaskHandler);
+  if (!alreadyWaiting && !isRenderTask && !holdingRenderLock) {
+    waitingTaskHandle = currTaskHandler;
+  }
+  taskEXIT_CRITICAL(&activityManagerSpinlock);
+
+  // Render task cannot call requestUpdateAndWait() or it will cause a deadlock
+  assert(!isRenderTask && "Render task cannot call requestUpdateAndWait()");
+
+  // There should never be the case where 2 tasks are waiting for a render at the same time
+  assert(!alreadyWaiting && "Already waiting for a render to complete");
+
+  // Cannot call while holding RenderLock or it will cause a deadlock
+  assert(!holdingRenderLock && "Cannot call requestUpdateAndWait() while holding RenderLock");
+
+  xTaskNotify(renderTaskHandle, 1, eIncrement);
+  ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+}
+
 // RenderLock
 
 RenderLock::RenderLock() {
